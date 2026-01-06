@@ -20,6 +20,16 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="apple-touch-icon" href="logo.png" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+  <style>
+    /* Icon font fallback (final fix): avoid external SVG/PNG issues */
+    .social a { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; }
+    .social a i { font-size:22px; line-height:1; }
+    .contact-chip .contact-ico.fa { display:inline-flex; width:40px; height:40px; align-items:center; justify-content:center; border-radius:12px; }
+    .contact-chip .contact-ico.fa i { font-size:22px; line-height:1; }
+  </style>
+
 </head>
 <body>
   <div class="app">
@@ -110,7 +120,7 @@
         </a>
 
         <a class="contact-chip" href="https://wa.me/967736000600" target="_blank" rel="noopener" aria-label="واتساب">
-          <img class="contact-ico-img" src="/media/icons/whatsapp.svg" alt="WhatsApp" />
+          <span class="contact-ico fa"><i class="fa-brands fa-whatsapp"></i></span>
           <span class="contact-txt">
             <span class="contact-label sr-only">واتساب</span>
             <span class="contact-value">736000600</span>
@@ -144,32 +154,21 @@
 
       <!-- Social Icons -->
       <div class="social" aria-label="Social Links">
-
-        <a href="https://www.instagram.com/Unicellye"
-           aria-label="Instagram" target="_blank" rel="noopener">
-          <img src="/media/icons/instagram.svg" alt="Instagram">
+        <a href="https://www.instagram.com/Unicellye" aria-label="Instagram" target="_blank" rel="noopener">
+          <i class="fa-brands fa-instagram"></i>
         </a>
-
-        <a href="https://t.me/Unicellye"
-           aria-label="Telegram" target="_blank" rel="noopener">
-          <img src="/media/icons/telegram.svg" alt="Telegram">
+        <a href="https://t.me/Unicellye" aria-label="Telegram" target="_blank" rel="noopener">
+          <i class="fa-brands fa-telegram"></i>
         </a>
-
-        <a href="https://x.com/Unicellye"
-           aria-label="X" target="_blank" rel="noopener">
-          <img src="/media/icons/x.svg" alt="X">
+        <a href="https://x.com/Unicellye" aria-label="X" target="_blank" rel="noopener">
+          <i class="fa-brands fa-x-twitter"></i>
         </a>
-
-        <a href="https://www.youtube.com/@Unicellye"
-           aria-label="YouTube" target="_blank" rel="noopener">
-          <img src="/media/icons/youtube.svg" alt="YouTube">
+        <a href="https://www.youtube.com/@Unicellye" aria-label="YouTube" target="_blank" rel="noopener">
+          <i class="fa-brands fa-youtube"></i>
         </a>
-
-        <a href="https://www.facebook.com/Unicellye"
-           aria-label="Facebook" target="_blank" rel="noopener">
-          <img src="/media/icons/facebook.svg" alt="Facebook">
+        <a href="https://www.facebook.com/Unicellye" aria-label="Facebook" target="_blank" rel="noopener">
+          <i class="fa-brands fa-facebook-f"></i>
         </a>
-
       </div>
 
       <p class="footer-note">

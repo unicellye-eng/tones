@@ -26,9 +26,9 @@ window.CATEGORIES = [
 ];
 
 window.COMPANIES = [
-  { key: "yemen",   name: "Yemen Mobile", logo: "/media/company/yemen.png" },
-  { key: "sabafon", name: "Sabafon",      logo: "/media/company/sabafon.png" },
-  { key: "you",     name: "YOU",          logo: "/media/company/you.png" }
+  { key: "yemen",   name: "Yemen Mobile", logo: "media/company/yemen.png" },
+  { key: "sabafon", name: "Sabafon",      logo: "media/company/sabafon.png" },
+  { key: "you",     name: "YOU",          logo: "media/company/you.png" }
 ];
 
 /*
@@ -61,7 +61,7 @@ window.RINGTONES = [
     "الأكثر تحميلًا": 1
   },
   codes: {
-    yemen:   { code: "SON02" },
+    yemen:   { code: "9930010088" },
     sabafon: { code: "SON02" },
     you:     { code: "SON02" }
   }
