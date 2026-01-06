@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="مكتبة نغمات يونيسل تكنولوجي — استمع لمعاينة 15 ثانية واطلب الاشتراك بسهولة." />
+  <meta property="og:title" content="مكتبة نغمات يونيسل تكنولوجي" />
+  <meta property="og:description" content="استمع لمعاينة 15 ثانية واطلب الاشتراك بسهولة." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="logo.png" />
+  <meta name="theme-color" content="#083866" />
+  <title>مكتبة نغمات يونيسل تكنولوجي</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="apple-touch-icon" href="logo.png" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- يظهر فقط في الصفحة الرئيسية -->
+    <header class="header" id="homeHeader">
+      <div class="brand">
+        <div class="brand-logo" aria-label="Logo">
+          <img src="logo.png" alt="Unicell Logo" onerror="this.style.display='none';document.getElementById('logoFallback').style.display='grid';">
+          <div id="logoFallback" class="logo-fallback" style="display:none">🎵</div>
+        </div>
+
+        <h1 class="title">نغمتك… توقيعك الصوتي </h1>
+        <p class="subtitle"> استمع فورًا، ثم فعّل النغمة التي أعجبتك بخطوة واحدة.</p>
+</div>
+
+      <div class="divider"></div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+
+        <!-- الصفحة الرئيسية: الأقسام -->
+        <section id="viewCategories" class="view">
+          <div id="categoriesGrid" class="grid categories-grid"></div>
+        </section>
+
+        <!-- صفحة القائمة: نغمات القسم -->
+        <section id="viewList" class="view hidden">
+          <div class="topbar">
+<div class="topbar-text"><h2 id="listTitle" class="section-badge section-title" style="margin:0;"></h2></div>
+            
+          </div>
+
+          <!-- يظهر فقط في (أدعية بالاسم) و (ردود آلية بالاسم) -->
+          <div id="listSearchWrap" class="search-wrap hidden" aria-label="بحث بالاسم">
+            <input id="listSearchInput" class="search-input" type="search" placeholder="ابحث بالاسم..." autocomplete="off" />
+          </div>
+
+          <div id="listGrid" class="grid list-grid"></div>
+        </section>
+
+        <!-- صفحة التفاصيل -->
+        <section id="viewDetails" class="view hidden">
+          <div class="topbar">
+<div class="topbar-text"><h2  class="section-title" style="margin:0;">تفاصيل النغمة</h2></div>
+            
+          </div>
+
+          <div class="card details-card">
+            <div id="detailsName" class="details-name"></div>
+
+            <!-- الضغط على الصورة = تشغيل/إيقاف -->
+            <div class="media" id="mediaToggle" tabindex="0" aria-label="تشغيل أو إيقاف">
+              <img id="detailsImage" class="media-img" src="" alt="">
+            </div>
+
+            <audio id="detailsAudio"></audio>
+
+            <div class="card-soft sub">
+              <h3 class="sub-title">الاشتراك</h3>
+              <p class="sub-hint">اختر الشركة ثم اضغط “اشتراك” لفتح رسالة SMS تلقائيًا.</p>
+              <div id="subsGrid" class="subs-grid"></div>
+              <div id="toast" class="toast"></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="container">
+    <div class="card footer-card">
+
+      <h3 class="footer-title">للتواصل</h3>
+      <p class="footer-sub">نحن هنا لمساعدتك — تواصل معنا عبر الاتصال أو واتساب.</p>
+
+      
+      <div class="contact-grid">
+        <a class="contact-chip" href="tel:736000600" aria-label="الاتصال">
+          <span class="contact-ico">📞</span>
+          <span class="contact-txt">
+            <span class="contact-label">اتصل بنا</span>
+            <span class="contact-value">736000600</span>
+          </span>
+        </a>
+
+        <a class="contact-chip" href="https://wa.me/967736000600" target="_blank" rel="noopener" aria-label="واتساب">
+          <img class="contact-ico-img" src="/media/icons/whatsapp.svg" alt="WhatsApp" />
+          <span class="contact-txt">
+            <span class="contact-label sr-only">واتساب</span>
+            <span class="contact-value">736000600</span>
+          </span>
+        </a>
+
+        <a class="contact-chip" href="mailto:info@unicell.com.ye" aria-label="البريد الإلكتروني">
+          <span class="contact-ico">✉️</span>
+          <span class="contact-txt">
+            <span class="contact-label">البريد الإلكتروني</span>
+            <span class="contact-value">info@unicell.com.ye</span>
+          </span>
+        </a>
+      </div>
+
+        <div class="raw-contacts">
+          💬 واتساب :
+          <a href="https://wa.me/967736000600" target="_blank" rel="noopener">
+            736000600
+          </a>
+        </div>
+
+        <div class="raw-contacts">
+          ✉️ البريد الإلكتروني :
+          <a href="mailto:info@unicell.com.ye">info@unicell.com.ye</a>
+        </div>
+
+        <div>
+
+      </div>
+
+      <!-- Social Icons -->
+      <div class="social" aria-label="Social Links">
+
+        <a href="https://www.instagram.com/Unicellye"
+           aria-label="Instagram" target="_blank" rel="noopener">
+          <img src="/media/icons/instagram.svg" alt="Instagram">
+        </a>
+
+        <a href="https://t.me/Unicellye"
+           aria-label="Telegram" target="_blank" rel="noopener">
+          <img src="/media/icons/telegram.svg" alt="Telegram">
+        </a>
+
+        <a href="https://x.com/Unicellye"
+           aria-label="X" target="_blank" rel="noopener">
+          <img src="/media/icons/x.svg" alt="X">
+        </a>
+
+        <a href="https://www.youtube.com/@Unicellye"
+           aria-label="YouTube" target="_blank" rel="noopener">
+          <img src="/media/icons/youtube.svg" alt="YouTube">
+        </a>
+
+        <a href="https://www.facebook.com/Unicellye"
+           aria-label="Facebook" target="_blank" rel="noopener">
+          <img src="/media/icons/facebook.svg" alt="Facebook">
+        </a>
+
+      </div>
+
+      <p class="footer-note">
+        © <span id="year"></span> يونيسل تكنولوجي 
+      </p>
+
+    </div>
+  </div>
+</footer>
+<script src="data.js" defer></script>
+<script src="app.js" defer></script>
+<script>
+  // PWA: Service Worker registration + silent auto-update
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", async () => {
+      try {
+        const reg = await navigator.serviceWorker.register("/service-worker.js");
+        // Ask SW to check for updates on each load
+        reg.update?.();
+
+        // If there's an updated SW waiting, activate it silently
+        const activateWaiting = () => {
+          if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+        };
+
+        reg.addEventListener("updatefound", () => {
+          const sw = reg.installing;
+          if (!sw) return;
+          sw.addEventListener("statechange", () => {
+            // New version installed and ready
+            if (sw.state === "installed" && navigator.serviceWorker.controller) {
+              activateWaiting();
+            }
+          });
+        });
+
+        // When the new SW takes control, reload once to serve fresh assets
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        });
+
+        // In case the update was already downloaded before listeners
+        activateWaiting();
+      } catch (_) {}
+    });
+  }
+);
+    });
+  }
+</script>
+<!-- PWA Install Banner (Text + Button) -->
+<div id="pwa-install-banner" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:9999;background:#083866;color:#fff;border-radius:12px;padding:8px 10px;box-shadow:0 8px 18px rgba(0,0,0,.22);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:420px;margin:0 auto">
+  <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+    <div style="line-height:1.45">
+      <div style="font-weight:700;font-size:14px">ثبّت التطبيق</div>
+      <div style="opacity:.9;font-size:12.5px">للوصول السريع من الشاشة الرئيسية</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button id="pwa-install-btn" style="border:0;border-radius:10px;padding:7px 10px;font-weight:700;font-size:13px;cursor:pointer">تثبيت</button>
+      <button id="pwa-dismiss-btn" style="border:1px solid rgba(255,255,255,.35);background:transparent;color:#fff;border-radius:10px;padding:7px 10px;font-size:13px;cursor:pointer">لاحقًا</button>
+    </div>
+  </div>
+
+  <!-- iOS instructions -->
+  <div id="ios-a2hs" style="display:none;margin-top:8px;opacity:.95;font-size:12.5px;line-height:1.6">
+    على iPhone: افتح الموقع من Safari ثم اضغط زر المشاركة (Share) واختر <b>إضافة إلى الشاشة الرئيسية</b>.
+  </div>
+</div>
+
+<script>
+  // Custom install UI: show AFTER 60 seconds from opening (smaller banner)
+  let deferredPrompt = null;
+  let showScheduled = false;
+
+  const banner = document.getElementById("pwa-install-banner");
+  const installBtn = document.getElementById("pwa-install-btn");
+  const dismissBtn = document.getElementById("pwa-dismiss-btn");
+  const iosHint = document.getElementById("ios-a2hs");
+
+  function isIOS() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent);
+  }
+
+  function scheduleShow() {
+    if (showScheduled) return;
+    showScheduled = true;
+
+    setTimeout(() => {
+      // Show on iOS with instructions, or on Android when prompt is available
+      if (isIOS()) {
+        banner.style.display = "block";
+        iosHint.style.display = "block";
+        installBtn.style.display = "none";
+        return;
+      }
+      if (deferredPrompt) {
+        banner.style.display = "block";
+        iosHint.style.display = "none";
+        installBtn.style.display = "inline-block";
+      }
+    }, 60000); // بعد دقيقة
+  }
+
+  // Always schedule from first load
+  
+const INSTALL_COOLDOWN_24H = 24 * 60 * 60 * 1000;
+const lastDismiss = localStorage.getItem("pwa_install_dismiss");
+if (!lastDismiss || Date.now() - Number(lastDismiss) > INSTALL_COOLDOWN_24H) {
+  scheduleShow();
+}
+
+
+  // Chrome/Edge/Samsung Internet: capture prompt but don't show immediately
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    
+const INSTALL_COOLDOWN_24H = 24 * 60 * 60 * 1000;
+const lastDismiss = localStorage.getItem("pwa_install_dismiss");
+if (!lastDismiss || Date.now() - Number(lastDismiss) > INSTALL_COOLDOWN_24H) {
+  scheduleShow();
+}
+
+  });
+
+  installBtn.addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice; // accepted/dismissed
+    deferredPrompt = null;
+    banner.style.display = "none";
+  });
+
+  dismissBtn.addEventListener("click", () => {
+    localStorage.setItem("pwa_install_dismiss", Date.now());
+    banner.style.display = "none";
+  });
+</script>
+
+
+<!-- Offline Hint -->
+<div id="offline-hint" style="
+  display:none;
+  position:fixed;
+  top:60px;
+  right:12px;
+  left:12px;
+  margin:auto;
+  max-width:420px;
+  background:#222;
+  color:#fff;
+  border-radius:10px;
+  padding:10px 12px;
+  font-size:13px;
+  text-align:center;
+  z-index:9998;
+  box-shadow:0 4px 14px rgba(0,0,0,.35)
+">
+  ⚠️ أنت غير متصل بالإنترنت. النغمات التي لم تُشغَّل سابقًا قد لا تعمل.
+</div>
+
+<script>
+  const offlineHint = document.getElementById("offline-hint");
+  function updateOffline() {
+    offlineHint.style.display = navigator.onLine ? "none" : "block";
+  }
+  window.addEventListener("online", updateOffline);
+  window.addEventListener("offline", updateOffline);
+  updateOffline();
+</script>
+
+
+<script>
+/* UI_MAX_HELPERS: تحسينات واجهة فقط بدون تغيير المنطق */
+(function(){
+  // Improve toast copy feedback if toast() exists
+  function flashCopied(){
+    try { toast("✅ تم النسخ"); } catch(_) {}
+  }
+  const copyBtn = document.getElementById("btnCopyCode");
+  if (copyBtn){
+    copyBtn.addEventListener("click", () => setTimeout(flashCopied, 50));
+  }
+
+  // Skeleton while list loads (if listGrid exists)
+  const grid = document.getElementById("tonesGrid") || document.getElementById("listGrid");
+  if (grid && !grid.dataset.skeleton){
+    grid.dataset.skeleton = "1";
+    const make = () => {
+      const sk = document.createElement("div");
+      sk.className = "skeleton-wrap";
+      sk.innerHTML = Array.from({length:6}).map(()=>`
+        <div class="skeleton-card">
+          <div class="sk-line sk-title"></div>
+          <div class="sk-line sk-sub"></div>
+        </div>
+      `).join("");
+      return sk;
+    };
+    const sk = make();
+    grid.parentNode.insertBefore(sk, grid);
+    const obs = new MutationObserver(() => {
+      if (grid.children.length > 0){
+        sk.remove();
+        obs.disconnect();
+      }
+    });
+    obs.observe(grid, {childList:true});
+  }
+})();
+</script>
+
+
+</body>
+</html>
