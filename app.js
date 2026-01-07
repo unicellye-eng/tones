@@ -84,42 +84,6 @@
   const previewAudio = new Audio();
   // تهيئة سريعة قدر الإمكان على الشبكات الضعيفة
   previewAudio.preload = "none";
-  let previewPlayToken = 0; // لإلغاء أي تشغيل سابق معلّق
-
-  // منع "الطقة/الضربة" عند بداية/نهاية التشغيل عبر Fade سريع (Web Audio)
-  let _audioCtx = null;
-  let _previewGain = null;
-  let _previewSource = null;
-
-  function ensurePreviewFX() {
-    if (_audioCtx) return;
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) return; // متصفح قديم
-    _audioCtx = new AC();
-    try {
-      _previewSource = _audioCtx.createMediaElementSource(previewAudio);
-      _previewGain = _audioCtx.createGain();
-      _previewGain.gain.value = 1;
-      _previewSource.connect(_previewGain).connect(_audioCtx.destination);
-    } catch (_) {
-      // بعض البيئات قد تمنع createMediaElementSource أكثر من مرة
-      _audioCtx = null;
-      _previewGain = null;
-      _previewSource = null;
-    }
-  }
-
-  function fadePreview(toValue, ms = 30) {
-    if (!_audioCtx || !_previewGain) return;
-    const now = _audioCtx.currentTime;
-    const t = now + Math.max(0.005, ms / 1000);
-    try {
-      _previewGain.gain.cancelScheduledValues(now);
-      _previewGain.gain.setValueAtTime(_previewGain.gain.value, now);
-      _previewGain.gain.linearRampToValueAtTime(toValue, t);
-    } catch (_) {}
-  }
-
   let previewPlayingId = null;
   let previewPlayingBtn = null;
   let previewAutoStopTimer = null;
@@ -174,9 +138,25 @@
   let toastTimer = null;
   function toastMsg(msg) {
     if (!toast) return;
-    toast.textContent = msg || "";
+
+    const text = (msg || "").trim();
+
+    // لا تُظهر Toast برسالة فارغة (يمنع ظهور شريط أبيض)
+    if (!text) {
+      toast.textContent = "";
+      toast.style.display = "none";
+      if (toastTimer) clearTimeout(toastTimer);
+      return;
+    }
+
+    toast.style.display = "block";
+    toast.textContent = text;
+
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (toast.textContent = ""), 2500);
+    toastTimer = setTimeout(() => {
+      toast.textContent = "";
+      toast.style.display = "none";
+    }, 2500);
   }
 
   function safe(s) { return (s ?? "").toString(); }
@@ -409,21 +389,14 @@ function normalizeRingtone(r, idx) {
   }
 
   function stopPreview() {
-    previewPlayToken++;              // يلغي أي play() قد يرجع متأخر
     clearPreviewAutoStop();
 
-    // Fade-out سريع لتخفيف "الطقة"
-    fadePreview(0, 25);
+    try { previewAudio.pause(); } catch {}
+    try { previewAudio.currentTime = 0; } catch {}
 
-    // أوقف بعد لحظة قصيرة ثم صفّر وافرغ المصدر
-    setTimeout(() => {
-      try { previewAudio.pause(); } catch {}
-      try { previewAudio.currentTime = 0; } catch {}
-      try { previewAudio.src = ""; } catch {}
-      try { previewAudio.load(); } catch {}
-      // ارجع الصوت طبيعي (للتشغيل القادم)
-      fadePreview(1, 1);
-    }, 30);
+    // تفريغ المصدر لتفريغ البافر ومنع "الطَقّة" أو تداخل بسيط
+    try { previewAudio.src = ""; } catch {}
+    try { previewAudio.load(); } catch {}
 
     previewPlayingId = null;
     if (previewPlayingBtn) setPlayIcon(previewPlayingBtn, false);
@@ -608,42 +581,19 @@ function normalizeRingtone(r, idx) {
         previewPlayingId = t.id;
         previewPlayingBtn = playBtn;
 
-        // ✅ تشغيل بدون تداخل + بدون "ضربة" (تفريغ + Token + Fade)
-        const myToken = ++previewPlayToken;
-
-        // تفريغ كامل قبل وضع المصدر الجديد
-        try { previewAudio.pause(); } catch {}
-        try { previewAudio.currentTime = 0; } catch {}
-        try { previewAudio.src = ""; previewAudio.load(); } catch {}
-
+        // ✅ شغّل فورًا عند الضغط (لا تنتظر canplaythrough)
         previewAudio.src = t.audio;
         try { previewAudio.currentTime = 0; } catch {}
         try { previewAudio.load(); } catch {}
 
-        // تهيئة FX مرة واحدة
-        ensurePreviewFX();
-        try { _audioCtx?.resume?.(); } catch {}
-
-        // Fade-in سريع لتخفيف أي Click في بداية الصوت
-        fadePreview(0, 0);
-
         const tryPlay = () =>
           previewAudio.play().then(() => {
-            if (myToken !== previewPlayToken) {
-              try { previewAudio.pause(); } catch {}
-              return;
-            }
-            // استئناف AudioContext عند أول تفاعل (مطلوب في بعض المتصفحات)
-            try { _audioCtx?.resume?.(); } catch {}
-            fadePreview(1, 30);
             setPlayIcon(playBtn, true);
           }).catch(() => {
+            // fallback: جرّب بعد جاهزية أبسط (canplay) بدل canplaythrough
             const onCanPlay = () => {
               previewAudio.removeEventListener("canplay", onCanPlay);
               previewAudio.play().then(() => {
-                if (myToken !== previewPlayToken) { try { previewAudio.pause(); } catch {}; return; }
-                try { _audioCtx?.resume?.(); } catch {}
-                fadePreview(1, 30);
                 setPlayIcon(playBtn, true);
               }).catch(() => {
                 stopPreview();

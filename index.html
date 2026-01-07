@@ -87,7 +87,7 @@
               <img id="detailsImage" class="media-img" src="" alt="">
             </div>
 
-            <audio id="detailsAudio"></audio>
+            <audio id="detailsAudio" preload="none" playsinline></audio>
 
             <div class="card-soft sub">
               <h3 class="sub-title">الاشتراك</h3>
@@ -181,44 +181,10 @@
 <script src="data.js" defer></script>
 <script src="app.js" defer></script>
 <script>
-  // PWA: Service Worker registration + silent auto-update
+  // PWA: Service Worker registration (safe)
   if ("serviceWorker" in navigator) {
-    window.addEventListener("load", async () => {
-      try {
-        const reg = await navigator.serviceWorker.register("/service-worker.js");
-        // Ask SW to check for updates on each load
-        reg.update?.();
-
-        // If there's an updated SW waiting, activate it silently
-        const activateWaiting = () => {
-          if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
-        };
-
-        reg.addEventListener("updatefound", () => {
-          const sw = reg.installing;
-          if (!sw) return;
-          sw.addEventListener("statechange", () => {
-            // New version installed and ready
-            if (sw.state === "installed" && navigator.serviceWorker.controller) {
-              activateWaiting();
-            }
-          });
-        });
-
-        // When the new SW takes control, reload once to serve fresh assets
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener("controllerchange", () => {
-          if (refreshing) return;
-          refreshing = true;
-          window.location.reload();
-        });
-
-        // In case the update was already downloaded before listeners
-        activateWaiting();
-      } catch (_) {}
-    });
-  }
-);
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
     });
   }
 </script>
@@ -272,7 +238,7 @@
         iosHint.style.display = "none";
         installBtn.style.display = "inline-block";
       }
-    }, 60000); // بعد دقيقة
+    }, 20000); // بعد 20 ثانية
   }
 
   // Always schedule from first load
