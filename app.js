@@ -83,7 +83,8 @@
   // Preview audio in list (single shared instance to avoid overlap)
   const previewAudio = new Audio();
   // تهيئة سريعة قدر الإمكان على الشبكات الضعيفة
-  previewAudio.preload = "auto";
+  previewAudio.preload = "none";
+  previewAudio.playsInline = true;
   let previewPlayingId = null;
   let previewPlayingBtn = null;
   let previewAutoStopTimer = null;
