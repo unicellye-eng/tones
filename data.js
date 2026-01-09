@@ -1,55 +1,40 @@
-/* =========================================================
-   data.js — (نسخة متوافقة مع app.js)
-   ✅ تثبيت أرقام خدمة الشركات
-   ✅ الأقسام يدوية بالكامل
-   ✅ متغيرات ظاهرة لـ app.js عبر window.*
-   ========================================================= */
-
-window.SERVICE_NUMBERS = {
-  yemen: "1100",   // يمن موبايل
-  sabafon: "111",  // سبأفون
-  you: "1017"      // YOU
-};
+// ملف البيانات (عدّل هذا الملف لإضافة/تعديل النغمات بسهولة)
+// ملاحظة: الأقسام ثابتة، ويمكنك تعديل أسمائها فقط هنا.
 
 window.CATEGORIES = [
-  "الأحدث",
-  "الأكثر تحميلًا",
-  "أدعية",
-  "أناشيد",
-  "أشعار",
-  "زوامل",
-  "أدعية بالاسم",
-  "ردود آلية بالاسم",
-  "رياضية",
-  "منوعات",
-  "أغاني"
+  { id: "latest", name: "الأحدث", image: "ringtones/images/cat-latest.jpg" },
+  { id: "popular", name: "الأكثر تحميلًا", image: "ringtones/images/cat-popular.jpg" },
+  { id: "duas", name: "أدعية", image: "ringtones/images/cat-duas.jpg" },
+  { id: "nasheeds", name: "أناشيد", image: "ringtones/images/cat-nasheeds.jpg" },
+  { id: "songs", name: "أغاني", image: "ringtones/images/cat-songs.jpg" },
+  { id: "zawamel", name: "زوامل", image: "ringtones/images/cat-zawamel.jpg" },
+  { id: "name-replies", name: "ردود آلية بالاسم", image: "ringtones/images/cat-name-replies.jpg" },
+  { id: "name-duas", name: "أدعية بالاسم", image: "ringtones/images/cat-name-duas.jpg" },
+  { id: "sports", name: "رياضية", image: "ringtones/images/cat-sports.jpg" },
+  { id: "misc", name: "منوعات", image: "ringtones/images/cat-misc.jpg" }
 ];
 
-window.COMPANIES = [
-  { key: "yemen",   name: "Yemen Mobile", logo: "media/company/yemen.png" },
-  { key: "sabafon", name: "Sabafon",      logo: "media/company/sabafon.png" },
-  { key: "you",     name: "YOU",          logo: "media/company/you.png" }
+window.CARRIERS = [
+  { key: "yemen", name: "Yemen Mobile", logo: "media/carriers/yemen.png", number: "1100" },
+  { key: "sabafon", name: "Sabafon", logo: "media/carriers/sabafon.png", number: "111" },
+  { key: "you", name: "YOU", logo: "media/carriers/you.png", number: "1017" }
 ];
-
-/*
-  ✅ تنسيق إضافة نغمة (Template)
-
-  {
-    id: "unique-id",                    // اختياري (لو تركته فاضي يتم توليده تلقائيًا)
-    title: "اسم النغمة",                // مطلوب
-    categories: ["زوامل", "الأكثر تحميلًا"],  // قسم واحد أو عدة أقسام
-    createdAt: "2026-01-04",            // اختياري (ISO). لو لم تضعه: ترتيب الملف (الأعلى أحدث)
-    rank: { "زوامل": 1, "الأكثر تحميلًا": 2 }, // اختياري: ترقيم/ترتيب يدوي داخل كل قسم
-    image: "AUTO",                      // للأقسام بالاسم فقط: اكتب AUTO أو اتركه فارغ وسيُولد تلقائيًا
-    audio: "ringtones/audio/file.mp3",
-    downloads: 0,                 // اختياري: عدد التحميلات (لترتيب قسم الأكثر تحميلًا)
-    codes: { yemen: { code: "..." }, sabafon: { code: "..." }, you: { code: "..." } }
+// بيانات التواصل (اختياري)
+window.CONTACT = {
+  phone: "736000600",
+  whatsapp: "736000600",
+  email: "info@unicell.com.ye",
+  social: {
+    instagram: "https://instagram.com/Unicellye",
+    telegram: "https://t.me/Unicellye",
+    x: "https://x.com/Unicellye",
+    youtube: "https://www.youtube.com/@Unicellye",
+    facebook: "https://facebook.com/Unicellye"
   }
-*/
-
+};
+// 
 window.RINGTONES = [
-
-  {
+{
     id: "sabr",
     title: "والصبر ياقلبي - ابراهيم الدوله",
     categories: ["الأكثر تحميلًا", "زوامل"],
@@ -95,7 +80,7 @@ window.RINGTONES = [
   title: "واقف انا - حسن الاميري",
   categories: ["أغاني", "الأكثر تحميلًا"],
   image: "ringtones/images/a4.jpg",
-  audio: "ringtones/audio/oatf.mp3",
+  audio: "ringtones/audio/waqef-ana.mp3",
   createdAt: "2026-01-04T12:00:00Z",
   rank: {
     "أغاني": 1,

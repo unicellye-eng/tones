@@ -1,744 +1,400 @@
-/* =========================================================
-   app.js — تشغيل الموقع
-   - Header يظهر فقط في الصفحة الرئيسية (الأقسام)
-   - القائمة: تشغيل/إيقاف من زر التشغيل فقط (Preview)
-   - زر اشتراك في القائمة: يفتح التفاصيل
-   - التفاصيل: الضغط على الصورة تشغيل/إيقاف (كما هو)
-   - إصلاح مهم: عند تحديث الصفحة داخل list/details لا تختفي البيانات
-   ========================================================= */
+(() => {
 
-(function () {
+// === Icon helpers (avoid colored emoji on Android) ===
+const LAST_PLAYED_KEY = "alooh:lastPlayedId";
+const CLICK_GUARD_MS = 250;
+
+function setPlayIcon(btn) {
+  btn.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M8 5v14l11-7z"/></svg>`;
+  btn.setAttribute("aria-label", "تشغيل");
+}
+function setPauseIcon(btn) {
+  btn.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>`;
+  btn.setAttribute("aria-label", "إيقاف مؤقت");
+}
   const $ = (id) => document.getElementById(id);
 
-  // Footer year
-  const yearEl = $("year");
-  if (yearEl) yearEl.textContent = new Date().getFullYear();
+  const headerTitle = $("headerTitle");
+  const backBtn = $("backBtn");
+  const headerLogo = $("headerLogo");
 
-  // Header (home only)
-  const homeHeader = $("homeHeader");
-
-  // Views
   const views = {
-    categories: $("viewCategories"),
+    cats: $("viewCategories"),
     list: $("viewList"),
     details: $("viewDetails"),
   };
 
-  // Nodes
   const categoriesGrid = $("categoriesGrid");
   const listGrid = $("listGrid");
-  const listTitle = $("listTitle");
-  const listSearchWrap = $("listSearchWrap");
-  const listSearchInput = $("listSearchInput");
+  const searchBtn = $("searchBtn");
+  const searchBar = $("searchBar");
+  const searchInput = $("searchInput");
+  const searchClear = $("searchClear");
 
-  const detailsName = $("detailsName");
   const detailsImage = $("detailsImage");
-  const detailsAudio = $("detailsAudio");
-  let detailsAutoStopTimer = null;
-  function clearDetailsAutoStop(){ if(detailsAutoStopTimer){ clearTimeout(detailsAutoStopTimer); detailsAutoStopTimer=null; } }
-  function armDetailsAutoStop() {
-    if (!AUDIO_PREVIEW_LIMIT_ENABLED) return; clearDetailsAutoStop(); detailsAutoStopTimer = setTimeout(()=>{
-    if(detailsAudio && !detailsAudio.paused){ try{ detailsAudio.pause(); }catch{} detailsAudio.currentTime=0; setDetailsPlaying(false); }
-  }, PREVIEW_LIMIT_SECONDS*1000); }
-
-  const mediaToggle = $("mediaToggle");
-
+  const detailsName = $("detailsName");
   const subsGrid = $("subsGrid");
   const toast = $("toast");
+  const offlineHint = $("offlineHint");
 
-  const btnBackToCategories = $("btnBackToCategories");
-  const btnBackToList = $("btnBackToList");
-
-  // Data
-  const CATEGORIES = window.CATEGORIES || [];
-  const RINGTONES = window.RINGTONES || [];
-  const COMPANIES = window.COMPANIES || [];
-  const SERVICE_NUMBERS = window.SERVICE_NUMBERS || {};
-
-  // أقسام "بالاسم" (لا تظهر في الأحدث + لها بحث + صورة تلقائية)
-  const NAME_CATEGORIES = new Set(["أدعية بالاسم", "ردود آلية بالاسم"]);
-
-  // State
-  let currentCategory = null;
-  let currentList = [];
-
-  // UI crumbs (no logic impact)
-  function updateCrumbs() {
-    const crumbList = document.getElementById("crumbList");
-    const crumbDetails = document.getElementById("crumbDetails");
-    const cat = currentCategory ? String(currentCategory) : "";
-
-    if (crumbList) {
-      crumbList.textContent = cat ? ("الرئيسية › " + cat) : "الرئيسية";
-    }
-    if (crumbDetails) {
-      const name = (document.getElementById("detailsName")?.textContent || "").trim();
-      if (cat && name) crumbDetails.textContent = "الرئيسية › " + cat + " › " + name;
-      else if (cat) crumbDetails.textContent = "الرئيسية › " + cat + " › التفاصيل";
-      else crumbDetails.textContent = "الرئيسية › التفاصيل";
-    }
-  }
-
-
-  // Preview audio in list (single shared instance to avoid overlap)
+  // Audio preview (LIST ONLY)
   const previewAudio = new Audio();
-  // تهيئة سريعة قدر الإمكان على الشبكات الضعيفة
+  // Compatibility defaults (safe; no UI impact)
   previewAudio.preload = "none";
-  let previewPlayingId = null;
-  let previewPlayingBtn = null;
-  let previewAutoStopTimer = null;
-  const PREVIEW_LIMIT_SECONDS = 15;
-  // ✅ تم تعطيل حد المدة داخل JavaScript — الاعتماد على قص الملفات الصوتية مسبقًا
-  const AUDIO_PREVIEW_LIMIT_ENABLED = false;
+  try { previewAudio.setAttribute("playsinline", ""); } catch(e) {}
+  try { previewAudio.setAttribute("webkit-playsinline", ""); } catch(e) {}
+  let currentPlayingId = null;
+  let isStoppingPreview = false;
 
-  function clearPreviewAutoStop() {
-    if (previewAutoStopTimer) {
-      clearTimeout(previewAutoStopTimer);
-      previewAutoStopTimer = null;
-    }
+  let currentView = "categories"; // categories | list | details
+  let selectedCategory = null;     // category id
+  let selectedRingtoneId = null;
+  let currentQuery = "";
+
+  // Cleanup controller for list button listeners (prevents leaks on re-render)
+  let listAbort = new AbortController();
+
+  // Auto-generated images for "بالاسم" content
+  const generatedImageCache = new Map();
+
+  function isByNameRingtone(r) {
+    return ((r?.categories || []).some(n => String(n || "").includes("بالاسم")));
   }
 
-  function armPreviewAutoStop(expectedId) {
-    clearPreviewAutoStop();
-    previewAutoStopTimer = setTimeout(() => {
-      // أوقف فقط لو ما زالت نفس النغمة هي التي تعمل
-      if (previewPlayingId === expectedId && !previewAudio.paused) {
-        try { previewAudio.pause(); } catch {}
-        previewAudio.currentTime = 0;
-        previewPlayingId = null;
-        if (previewPlayingBtn) setPlayIcon(previewPlayingBtn, false);
-      }
-    }, PREVIEW_LIMIT_SECONDS * 1000);
-  }
-  // تنظيف عند الإيقاف/الخطأ
-  previewAudio.addEventListener("pause", () => {
-    clearPreviewAutoStop();
-    if (previewPlayingBtn && previewAudio.paused) {
-      // لا نغيّر الأيقونة هنا إلا إذا لم يعد لدينا تشغيل فعلي
-      // (تتم إدارتها من stopPreview أو ended أو auto-stop)
-    }
-  });
-  previewAudio.addEventListener("error", () => {
-    clearPreviewAutoStop();
-    previewPlayingId = null;
-    if (previewPlayingBtn) setPlayIcon(previewPlayingBtn, false);
-    previewPlayingBtn = null;
-  });
-
-  // عند انتهاء الصوت: رجّع زر التشغيل (مرة واحدة فقط)
-  previewAudio.addEventListener("ended", () => {
-    clearPreviewAutoStop();
-    previewPlayingId = null;
-    if (previewPlayingBtn) setPlayIcon(previewPlayingBtn, false);
-    previewPlayingBtn = null;
-  });
-
-
-  // Toast
-  let toastTimer = null;
-  function toastMsg(msg) {
-    if (!toast) return;
-
-    const text = (msg || "").trim();
-
-    // لا تُظهر Toast برسالة فارغة (يمنع ظهور شريط أبيض)
-    if (!text) {
-      toast.textContent = "";
-      toast.style.display = "none";
-      if (toastTimer) clearTimeout(toastTimer);
-      return;
-    }
-
-    toast.style.display = "block";
-    toast.textContent = text;
-
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      toast.textContent = "";
-      toast.style.display = "none";
-    }, 2500);
-  }
-
-  function safe(s) { return (s ?? "").toString(); }
-
-  // ---------- Normalize + ترتيب ----------
-  function toArrayCategories(r) {
-    // دعم توافق: category: "..." أو categories: ["...", ...]
-    const cats = Array.isArray(r.categories)
-      ? r.categories
-      : (r.category ? [r.category] : []);
-    // تنظيف + إزالة التكرارات
-    return Array.from(new Set(cats.map((x) => safe(x).trim()).filter(Boolean)));
-  }
-
-  function ensureCodes(r) {
-    const codes = r.codes || {};
-    for (const k of Object.keys(SERVICE_NUMBERS)) {
-      if (!codes[k]) codes[k] = {};
-    }
-    r.codes = codes;
-    return r;
-  }
-
-  function makeStableId(r, idx) {
-    const base = safe(r.id).trim();
-    if (base) return base;
-    const t = safe(r.title).trim() || "tone";
-    return (
-      t
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/[^\u0600-\u06FFa-z0-9\-]/gi, "")
-        .slice(0, 40) +
-      "-" +
-      (idx + 1)
-    );
-  }
-
-  function ensureUniqueIds(list) {
-    const seen = new Map();
-    list.forEach((r, i) => {
-      r.id = makeStableId(r, i);
-      const key = String(r.id);
-      const n = (seen.get(key) || 0) + 1;
-      seen.set(key, n);
-      if (n > 1) r.id = key + "-" + n; // ✅ يمنع تعارض التفاصيل/التشغيل
-    });
-    return list;
-  }
-
-  function parseDate(v) {
-    if (!v) return null;
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  }
-
-  function buildAutoNameImage(text) {
-    // صورة تلقائية لأقسام (بالاسم): بطاقة رمادي فاتح + إطار ناعم + اسم كبير فقط
-    const raw = safe(text).trim() || "";
-
-    // نريد الاسم فقط بدون (دعاء/رد/رد آلي) في بداية العنوان
-    const title = raw
-      .replace(/^\s*دعاء\s+/u, "")
-      .replace(/^\s*رد\s*آلي(?:ه)?\s+/u, "")
-      .replace(/^\s*رد\s+/u, "")
+  function extractNameOnly(title) {
+    const t = String(title || "").trim();
+    // Remove common prefixes like: دعاء / رد / رد آلي
+    const cleaned = t
+      .replace(/^\s*(دعاء)\s+/u, "")
+      .replace(/^\s*(رد\s*آلي|رد)\s+/u, "")
       .trim();
+    return cleaned || t;
+  }
 
-    const size = 900;
+  function makeNameImageDataUrl(text) {
     const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = 600;
+    canvas.height = 600;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return "ringtones/images/placeholder.png";
 
-    // حاول تحميل خط عربي جميل (إنترنت) مرة واحدة — وإن لم يتوفر نستخدم بدائل النظام
-    try {
-      if (!document.getElementById("cairo-font-link")) {
-        const link = document.createElement("link");
-        link.id = "cairo-font-link";
-        link.rel = "stylesheet";
-        link.href = "https://fonts.googleapis.com/css2?family=Cairo:wght@700;800;900&display=swap";
-        document.head.appendChild(link);
+    // Subtle dark background (keeps site palette)
+    const g = ctx.createLinearGradient(0, 0, 600, 600);
+    g.addColorStop(0, "#0b1620");
+    g.addColorStop(1, "#111c27");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 600, 600);
+
+    // Very subtle music note pattern
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = "#ffffff";
+    const notes = ["♪", "♫", "♩", "♬"];
+    ctx.font = "48px sans-serif";
+    for (let y = 80; y < 600; y += 140) {
+      for (let x = 60; x < 600; x += 140) {
+        ctx.fillText(notes[(x + y) % notes.length], x, y);
       }
-    } catch (_) {}
-
-    // ألوان البطاقة
-    const bg = "#f2f2f2";
-    const border = "#d6d6d6";
-    const textColor = "#222";
-
-    // خلفية
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, size, size);
-
-    // دالة رسم مستطيل بزوايا دائرية
-    function roundRect(x, y, w, h, r) {
-      const rr = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + rr, y);
-      ctx.arcTo(x + w, y, x + w, y + h, rr);
-      ctx.arcTo(x + w, y + h, x, y + h, rr);
-      ctx.arcTo(x, y + h, x, y, rr);
-      ctx.arcTo(x, y, x + w, y, rr);
-      ctx.closePath();
     }
+    ctx.globalAlpha = 1;
 
-    // إطار داخلي ناعم (Card)
-    const margin = 60;
-    const radius = 26;
-    const innerX = margin;
-    const innerY = margin;
-    const innerW = size - margin * 2;
-    const innerH = size - margin * 2;
-
-    // ظل خفيف جدًا للإطار (فخامة بدون مبالغة)
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,.08)";
-    ctx.shadowBlur = 12;
-    ctx.shadowOffsetY = 6;
-    roundRect(innerX, innerY, innerW, innerH, radius);
-    ctx.fillStyle = bg;
-    ctx.fill();
-    ctx.restore();
-
-    // حد الإطار
-    roundRect(innerX, innerY, innerW, innerH, radius);
-    ctx.strokeStyle = border;
-    ctx.lineWidth = 6;
-    ctx.stroke();
-
-    // إعدادات النص
-    ctx.fillStyle = textColor;
+    // Main name text
+    const name = String(text || "").trim();
+    ctx.fillStyle = "#ffffff";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.direction = "rtl";
 
-    // مساحة النص (داخل الإطار)
-    const pad = 90;
-    const maxWidth = innerW - pad * 2;
-
-    // خط عربي مناسب للأسماء + بدائل قوية
-    const fontStack = "Cairo, Tajawal, 'Noto Naskh Arabic', 'Amiri', Tahoma, Arial, sans-serif";
-
-    // تكبير الاسم: يبدأ كبير جدًا ثم يصغر حتى يناسب العرض
-    let fontSize = 210;
-    const minSize = 70;
-    while (fontSize > minSize) {
-      ctx.font = `900 ${fontSize}px ${fontStack}`;
-      if (ctx.measureText(title).width <= maxWidth) break;
-      fontSize -= 3;
+    // Fit text to canvas
+    let fontSize = 92;
+    const maxWidth = 520;
+    while (fontSize > 44) {
+      ctx.font = `800 ${fontSize}px system-ui, -apple-system, Segoe UI, Arial`;
+      if (ctx.measureText(name).width <= maxWidth) break;
+      fontSize -= 4;
     }
 
-    // ظل بسيط للنص لزيادة الوضوح
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,.12)";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetY = 3;
+    // Soft shadow for readability
+    ctx.shadowColor = "rgba(0,0,0,0.55)";
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
+    ctx.fillText(name, 300, 300);
+    ctx.shadowBlur = 0;
 
-    // إذا الاسم طويل جدًا نقسمه لسطرين
-    const words = title.split(/\s+/).filter(Boolean);
-    if (ctx.measureText(title).width > maxWidth && words.length > 1) {
-      const mid = Math.ceil(words.length / 2);
-      const line1 = words.slice(0, mid).join(" ");
-      const line2 = words.slice(mid).join(" ");
-      ctx.font = `900 ${fontSize}px ${fontStack}`;
-      ctx.fillText(line1, size / 2, size / 2 - fontSize * 0.55);
-      ctx.fillText(line2, size / 2, size / 2 + fontSize * 0.55);
-    } else {
-      ctx.font = `900 ${fontSize}px ${fontStack}`;
-      ctx.fillText(title, size / 2, size / 2);
-    }
-    ctx.restore();
-
-    try {
-      return canvas.toDataURL("image/png");
-    } catch {
-      return "ringtones/images/placeholder.png";
-    }
+    return canvas.toDataURL("image/png");
   }
 
-function normalizeRingtone(r, idx) {
-    const out = { ...r };
-    out.categories = toArrayCategories(out);
-    delete out.category; // منع الالتباس
-    out._createdIndex = idx; // fallback للفرز
-
-    // createdAt اختياري: إن لم يوجد سيُستخدم ترتيب الإدخال
-    const d = parseDate(out.createdAt);
-    out._createdAtMs = d ? d.getTime() : null;
-
-    // rank اختياري: رقم ترتيب يدوي (كل ما كان أصغر = أعلى)
-    // يمكن أن يكون رقمًا عامًا أو كائنًا حسب القسم {"زوامل": 1, "الأكثر تحميلًا": 3}
-    out.rank = out.rank ?? null;
-
-    // صورة تلقائية للأقسام بالاسم (إذا لم تُحدد صورة أو كانت AUTO)
-    const isNameCat = out.categories.some((c) => NAME_CATEGORIES.has(c));
-    if (isNameCat) {
-      if (!out.image || String(out.image).toUpperCase() === "AUTO") {
-        out.image = buildAutoNameImage(out.title);
-      }
-    }
-
-    ensureCodes(out);
-    return out;
+  function getDisplayImage(r) {
+    if (!r) return "";
+    if (!isByNameRingtone(r)) return r.image || "";
+    if (generatedImageCache.has(r.id)) return generatedImageCache.get(r.id);
+    const nameOnly = extractNameOnly(r.title);
+    const url = makeNameImageDataUrl(nameOnly);
+    generatedImageCache.set(r.id, url);
+    return url;
   }
 
-  const R = ensureUniqueIds(RINGTONES.map((r, i) => normalizeRingtone(r, i)));
+  function normalizeRingtone(r) {
+    // Defensive normalization (prevents crashes from unexpected/missing fields)
+    const obj = (r && typeof r === "object") ? r : {};
+    const id = obj.id ?? obj._id ?? obj.uuid ?? String(Math.random());
+    const title = String(obj.title ?? obj.name ?? "").trim();
+    const audio = String(obj.audio ?? obj.audioUrl ?? obj.url ?? "").trim();
+    const image = String(obj.image ?? obj.img ?? obj.cover ?? "").trim();
+    const categories = Array.isArray(obj.categories) ? obj.categories.filter(Boolean).map(String) : [];
+    const rank = (obj.rank && typeof obj.rank === "object") ? obj.rank : {};
+    return {
+      ...obj,
+      id,
+      title,
+      audio,
+      image,
+      categories,
+      rank
+    };
+  }
 
   function showView(name) {
-    Object.values(views).forEach((v) => v && v.classList.add("hidden"));
-    if (views[name]) views[name].classList.remove("hidden");
-
-    // Header يظهر فقط في الصفحة الرئيسية
-    if (homeHeader) {
-      homeHeader.style.display = (name === "categories") ? "" : "none";
-    }
-
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    try { updateCrumbs(); } catch {}
+    Object.values(views).forEach(v => v.classList.add("hidden"));
+    views[name].classList.remove("hidden");
+    currentView = name === "cats" ? "categories" : (name === "list" ? "list" : "details");
   }
 
-  // ===============================
-  // History (Back/Swipe = previous view)
-  // ===============================
-  const VIEW_KEY_TO_HASH = (k) => "#" + k;
+  function setHeader(title, showBack) {
+    headerTitle.textContent = title || "سمّع متصليك – أجمل الرنات";
+    backBtn.classList.toggle("hidden", !showBack);
+    headerLogo.classList.toggle("hidden", !!showBack); // مثل القالب الأصلي: يظهر الشعار فقط في الرئيسية
+  }
 
-  function pushView(name) {
-    history.pushState({ __app: 1, view: name }, "", VIEW_KEY_TO_HASH(name));
-    showView(name);
+  function toastMsg(msg) {
+    toast.textContent = msg;
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 1800);
   }
 
   function stopPreview() {
-    clearPreviewAutoStop();
-
-    try { previewAudio.pause(); } catch {}
-    try { previewAudio.currentTime = 0; } catch {}
-
-    // تفريغ المصدر لتفريغ البافر ومنع "الطَقّة" أو تداخل بسيط
-    try { previewAudio.src = ""; } catch {}
-    try { previewAudio.load(); } catch {}
-
-    previewPlayingId = null;
-    if (previewPlayingBtn) setPlayIcon(previewPlayingBtn, false);
-    previewPlayingBtn = null;
-  }
-
-  function stopAllAudio() {
-    stopPreview();
-    try { detailsAudio.pause(); } catch {}
-    try { detailsAudio.currentTime = 0; } catch {}
-    clearDetailsAutoStop();
-    setDetailsPlaying(false);
-  }
-
-  // أوقف الصوت عند الخروج/فتح رابط خارجي/إخفاء الصفحة
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) stopAllAudio();
-  });
-  window.addEventListener("pagehide", () => stopAllAudio());
-  window.addEventListener("beforeunload", () => stopAllAudio());
-
-  // أي رابط تواصل / اتصالات / روابط تفتح تبويب جديد
-  document.addEventListener("click", (e) => {
-    const a = e.target.closest?.("a");
-    if (!a) return;
-    const href = (a.getAttribute("href") || "").trim().toLowerCase();
-    const inFooter = !!a.closest("footer");
-    const isExternal = a.target === "_blank";
-    const isContact = href.startsWith("tel:") || href.startsWith("mailto:") || href.includes("wa.me") || href.includes("whatsapp") || href.includes("t.me") || href.includes("telegram") || href.includes("facebook") || href.includes("instagram") || href.includes("tiktok") || href.includes("x.com") || href.includes("twitter");
-    if (inFooter || isExternal || isContact) stopAllAudio();
-  }, true);
-
-  // عند الرجوع (زر الهاتف أو السحب)
-  window.addEventListener("popstate", (e) => {
-    stopPreview();
-    try { detailsAudio.pause(); } catch {}
-    detailsAudio.currentTime = 0;
-    clearDetailsAutoStop();
-    setDetailsPlaying(false);
-
-    const name = (e.state && e.state.view) || "categories";
-    showView(name);
-
-    // ✅ إذا رجع لصفحة القائمة: ارسم آخر قسم محفوظ
-    if (name === "list") {
-      const cat = sessionStorage.getItem("lastCategory");
-      if (cat) openCategory(cat, true);
-    }
-
-    // ✅ إذا رجع للتفاصيل: ارسم آخر نغمة محفوظة
-    if (name === "details") {
-      const id = sessionStorage.getItem("lastDetailsId");
-      if (id) openDetails(id, true);
-    }
-  });
-
-  // ---------- Categories ----------
-  function renderCategories() {
-    if (!categoriesGrid) return;
-    categoriesGrid.innerHTML = "";
-    CATEGORIES.forEach((cat) => {
-      const div = document.createElement("div");
-      div.className = "card category-card";
-      div.setAttribute("role", "button");
-      div.tabIndex = 0;
-      div.innerHTML = `<div class="category-title">${safe(cat)}</div>`;
-
-      const open = () => openCategory(cat);
-      div.addEventListener("click", open);
-      div.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") open();
-      });
-
-      categoriesGrid.appendChild(div);
-    });
-  }
-
-  // ---------- List ----------
-  function getRankForCategory(t, cat) {
-    if (t.rank == null) return null;
-    if (typeof t.rank === "number") return t.rank;
-    if (typeof t.rank === "object" && t.rank) {
-      const v = t.rank[cat];
-      if (v == null) return null;
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
-    }
-    return null;
-  }
-
-  function sortForCategory(list, cat) {
-    return [...list].sort((a, b) => {
-      const ra = getRankForCategory(a, cat);
-      const rb = getRankForCategory(b, cat);
-      if (ra != null && rb != null && ra !== rb) return ra - rb;
-      if (ra != null && rb == null) return -1;
-      if (ra == null && rb != null) return 1;
-
-      // ✅ الافتراضي: لو ما فيه createdAt اعتبر ترتيب الملف (الأعلى أحدث)
-      const da = (a._createdAtMs ?? -a._createdIndex);
-      const db = (b._createdAtMs ?? -b._createdIndex);
-      return db - da; // الأحدث أولاً
-    });
-  }
-
-  function isExcludedFromLatest(t) {
-    return t.categories.some((c) => NAME_CATEGORIES.has(c));
-  }
-
-  function primaryCategoryForLatest(t) {
-    // إظهار اسم القسم تحت الاسم في "الأحدث" (مع تجاهل الأحدث/الأكثر تحميلًا)
-    const skip = new Set(["الأحدث", "الأكثر تحميلًا"]);
-    const c = t.categories.find((x) => !skip.has(x));
-    return c || null;
-  }
-
-  function getCategoryRingtones(cat) {
-    // ✅ "الأحدث" تلقائي: كل الأقسام ما عدا الأقسام بالاسم
-    if (cat === "الأحدث") {
-      const list = R.filter((t) => !isExcludedFromLatest(t));
-      return sortForCategory(list, cat);
-    }
-
-    // باقي الأقسام: حسب التصنيف (يدعم تعدد الأقسام)
-    const list = R.filter((t) => t.categories.includes(cat));
-    return sortForCategory(list, cat);
-  }
-
-  function setPlayIcon(btn, isPlaying) {
-    if (!btn) return;
-    btn.classList.toggle("is-playing", !!isPlaying);
-    btn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
-    btn.textContent = isPlaying ? "❚❚" : "▶";
-  }
-
-  function toneCard(t) {
-    const div = document.createElement("div");
-    div.className = "tone-card";
-
-    const metaParts = [];
-    // ✅ في الأحدث: أظهر اسم القسم بين قوسين تحت الاسم
-    if (currentCategory === "الأحدث") {
-      const c = primaryCategoryForLatest(t);
-      if (c) metaParts.push(`(${c})`);
-    }
-    const metaLine = metaParts.length ? `<div class="tone-meta">${metaParts.join(" ")}</div>` : "";
-
-    div.innerHTML = `
-      <div class="tone-thumb-wrap">
-        <img class="tone-thumb" src="${t.image}" alt="${safe(t.title)}"
-             onerror="this.src='ringtones/images/placeholder.png'">
-      </div>
-
-      <div class="tone-name">${safe(t.title)}</div>
-      ${metaLine}
-
-      <div class="tone-actions">
-        <button class="btn btn-soft tone-play" type="button" aria-label="تشغيل/إيقاف">▶</button>
-        <button class="btn btn-soft tone-subscribe" type="button">اشتراك</button>
-      </div>
-    `;
-
-    const playBtn = div.querySelector(".tone-play");
-    const subBtn = div.querySelector(".tone-subscribe");
-
-    // ✅ تشغيل/إيقاف من زر التشغيل فقط (وليس الصورة)
-    playBtn.addEventListener("click", async (e) => {
-      e.stopPropagation();
-
-      try {
-        // نفس النغمة شغالة -> إيقاف
-        if (previewPlayingId === t.id && !previewAudio.paused) {
-          stopPreview();
-          setPlayIcon(playBtn, false);
-          playBtn.blur(); // ✅ إزالة focus (يقلل أي إطار/لون)
-          return;
-        }
-
-        // إيقاف أي نغمة سابقة + تحديث أي أزرار قديمة
-        stopPreview();
-
-        previewPlayingId = t.id;
-        previewPlayingBtn = playBtn;
-
-        // ✅ شغّل فورًا عند الضغط (لا تنتظر canplaythrough)
-        previewAudio.src = t.audio;
-        try { previewAudio.currentTime = 0; } catch {}
-        try { previewAudio.load(); } catch {}
-
-        const tryPlay = () =>
-          previewAudio.play().then(() => {
-            setPlayIcon(playBtn, true);
-          }).catch(() => {
-            // fallback: جرّب بعد جاهزية أبسط (canplay) بدل canplaythrough
-            const onCanPlay = () => {
-              previewAudio.removeEventListener("canplay", onCanPlay);
-              previewAudio.play().then(() => {
-                setPlayIcon(playBtn, true);
-              }).catch(() => {
-                stopPreview();
-                setPlayIcon(playBtn, false);
-              });
-            };
-            previewAudio.addEventListener("canplay", onCanPlay, { once: true });
-            try { previewAudio.load(); } catch {}
-          });
-
-        tryPlay();
-        playBtn.blur(); // ✅
-      } catch {
-        stopPreview();
-        setPlayIcon(playBtn, false);
-        playBtn.blur(); // ✅
-        toastMsg("تعذر تشغيل الصوت (تحقق من ملف الصوت).");
-      }
-    });
-
-
-
-    // زر اشتراك -> تفاصيل
-    subBtn.addEventListener("click", () => {
-      stopPreview();
-      openDetails(t.id);
-    });
-
-    return div;
-  }
-
-  function renderList(items) {
-    if (!listGrid) return;
-    listGrid.innerHTML = "";
-
-    if (!items.length) {
-      const empty = document.createElement("div");
-      empty.className = "card";
-      empty.style.padding = "14px";
-      empty.style.textAlign = "center";
-      empty.innerHTML = `
-        <div style="font-weight:900">لا توجد نغمات في هذا القسم</div>
-        <div style="color:rgba(255,255,255,.80);margin-top:6px;font-size:13px">أضف نغمات من ملف data.js</div>
-      `;
-      listGrid.appendChild(empty);
-      return;
-    }
-
-    items.forEach((t) => listGrid.appendChild(toneCard(t)));
-  }
-
-  function setSearchEnabled(isEnabled) {
-    if (!listSearchWrap || !listSearchInput) return;
-    listSearchWrap.classList.toggle("hidden", !isEnabled);
-    if (!isEnabled) {
-      listSearchInput.value = "";
-    }
-  }
-
-  function applySearchFilter() {
-    if (!listSearchInput) return;
-    const q = safe(listSearchInput.value).trim();
-    if (!q) {
-      renderList(currentList);
-      return;
-    }
-    const qq = q.toLowerCase();
-    const filtered = currentList.filter((t) => safe(t.title).toLowerCase().includes(qq));
-    renderList(filtered);
-  }
-
-  // ✅ openCategory مع خيار بدون push (للاسترجاع عند التحديث)
-  function openCategory(cat, noPush) {
-    currentCategory = cat;
-    currentList = getCategoryRingtones(cat);
-
-    // ✅ حفظ آخر قسم لعدم فقدانه عند Refresh
-    sessionStorage.setItem("lastCategory", cat);
-
-    if (listTitle) listTitle.textContent = cat;
-    try { updateCrumbs(); } catch {}
-    // ✅ تفعيل البحث فقط في الأقسام بالاسم
-    const enableSearch = NAME_CATEGORIES.has(cat);
-    setSearchEnabled(enableSearch);
-    renderList(currentList);
-    if (enableSearch) {
-      // bind once
-      if (!listSearchInput.dataset.bound) {
-        listSearchInput.dataset.bound = "1";
-        listSearchInput.addEventListener("input", applySearchFilter);
-        listSearchInput.addEventListener("search", applySearchFilter);
-      }
-      // إعادة تطبيق بعد تغيير القسم
-      setTimeout(() => listSearchInput.focus(), 50);
-    }
-
-    if (noPush) {
-      showView("list");
-    } else {
-      pushView("list");
-    }
-  }
-
-  // ---------- Details ----------
-  function setDetailsPlaying(isPlaying) {
-    if (!mediaToggle) return;
-    mediaToggle.classList.toggle("is-playing", !!isPlaying);
-    mediaToggle.dataset.playing = isPlaying ? "1" : "0";
-  }
-
-  async function toggleDetailsPlay() {
-    const isPlaying = mediaToggle?.dataset.playing === "1";
+    if (isStoppingPreview) return;
+    isStoppingPreview = true;
     try {
-      if (isPlaying) {
-        detailsAudio.pause();
-        detailsAudio.currentTime = 0;
-        clearDetailsAutoStop();
-        setDetailsPlaying(false);
-      } else {
-        detailsAudio.load();
-        detailsAudio.play().catch(() => {});
-        armDetailsAutoStop();
-        setDetailsPlaying(true);
-      }
-
-  // عند انتهاء معاينة التفاصيل (20 ثانية أو نهاية الملف)
-  if (detailsAudio) {
-    detailsAudio.addEventListener("ended", () => {
-      clearDetailsAutoStop();
-      try { detailsAudio.currentTime = 0; } catch {}
-      setDetailsPlaying(false);
+      previewAudio.pause();
+      previewAudio.currentTime = 0;
+      previewAudio.removeAttribute("src");
+      previewAudio._retry = 0;
+    try { previewAudio.load(); } catch(e) {}
+    } catch (e) {}
+    currentPlayingId = null;
+    try { localStorage.removeItem(LAST_PLAYED_KEY); } catch (e) {}
+    document.querySelectorAll("[data-play]").forEach(btn => {
+      try { btn.dataset.busy = "0"; } catch(e) {}
+      setPlayIcon(btn);
     });
-    detailsAudio.addEventListener("pause", () => {
-      clearDetailsAutoStop();
+    isStoppingPreview = false;
+  }
+
+  function playToggle(id, audioUrl, btn) {
+    // Guard against double taps / rapid clicks on mobile
+    if (btn?.dataset?.busy === "1") return;
+    if (btn) {
+      btn.dataset.busy = "1";
+      setTimeout(() => { try { btn.dataset.busy = "0"; } catch(e) {} }, CLICK_GUARD_MS);
+    }
+    if (currentPlayingId === id) {
+      stopPreview();
+      return;
+    }
+    stopPreview();
+    previewAudio.src = audioUrl;
+    previewAudio.play().then(() => {
+      currentPlayingId = id;
+      try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
+      setPauseIcon(btn);
+    }).catch(() => {
+      // Safe one-time retry for flaky mobile networks (no UI change)
+      if (previewAudio._retry === 0) {
+        previewAudio._retry = 1;
+        try { previewAudio.currentTime = 0; previewAudio.play().then(() => {
+          currentPlayingId = id;
+          try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
+          setPauseIcon(btn);
+        }).catch(() => {
+          try { if (btn) { setPlayIcon(btn); btn.dataset.busy = "0"; } } catch(e) {}
+          toastMsg("تعذر تشغيل الصوت");
+        }); return; } catch(e) {}
+      }
+      try { if (btn) { setPlayIcon(btn); btn.dataset.busy = "0"; } } catch(e) {}
+      toastMsg("تعذر تشغيل الصوت");
     });
   }
-    } catch {
-      setDetailsPlaying(false);
-      toastMsg("تعذر تشغيل الصوت (تحقق من ملف الصوت).");
+  previewAudio.addEventListener("ended", stopPreview);
+  // Robust state recovery (no UI change)
+  ["error","abort","stalled"].forEach(ev => {
+    previewAudio.addEventListener(ev, () => {
+      // If something goes wrong mid-play, ensure icons/state reset
+      if (currentPlayingId != null) stopPreview();
+    });
+  });
+  previewAudio.addEventListener("pause", () => {
+    // Some browsers pause audio when switching apps; keep UI consistent
+    if (!isStoppingPreview && currentPlayingId != null) stopPreview();
+  });
+
+  // Stop audio when the page is hidden (prevents stuck playback on mobile)
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopPreview();
+  });
+
+  function ringtonesForCategory(catId) {
+    const catObj = (window.CATEGORIES || []).find(c => c.id === catId);
+    const catName = catObj ? catObj.name : "";
+
+    const all = (window.RINGTONES || []).map(normalizeRingtone);
+
+    const hasCat = (r, name) => (r.categories || []).includes(name);
+
+    const sortByRankOrDate = (items, name) => {
+      return items.slice().sort((a, b) => {
+        const ra = a.rank?.[name];
+        const rb = b.rank?.[name];
+        const hasRa = Number.isFinite(ra);
+        const hasRb = Number.isFinite(rb);
+        if (hasRa && hasRb) return ra - rb;
+        if (hasRa) return -1;
+        if (hasRb) return 1;
+
+        const da = Date.parse(a.createdAt || "") || 0;
+        const db = Date.parse(b.createdAt || "") || 0;
+        return db - da; // newer first
+      });
+    };
+
+    if (catId === "latest") {
+      // "الأحدث" يعرض كل النغمات من كل الأقسام
+      // مع استثناء أي نغمة تنتمي لأي قسم يحتوي اسمه على كلمة "بالاسم"
+      const filtered = all.filter(r => !((r.categories || []).some(n => String(n || "").includes("بالاسم"))));
+      return filtered.slice().sort((a, b) => (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0));
     }
+
+    if (catId === "popular") {
+      // "الأكثر تحميلًا" بحسب ترتيب rank إن وجد
+      const popularName = ((window.CATEGORIES || []).find(c => c.id === "popular") || {}).name || "الأكثر تحميلًا";
+      const filtered = all.filter(r => hasCat(r, popularName));
+      return sortByRankOrDate(filtered, popularName);
+    }
+
+    // باقي الأقسام
+    const filtered = catName ? all.filter(r => hasCat(r, catName)) : all;
+    return catName ? sortByRankOrDate(filtered, catName) : filtered;
+  }
+
+  function renderList(catId, query) {
+    // Cleanup old listeners from previous render
+    try { listAbort.abort(); } catch(e) {}
+    listAbort = new AbortController();
+
+    const q = (query || "").trim().toLowerCase();
+    const items = ringtonesForCategory(catId).filter(r => {
+      if (!q) return true;
+      return String(r.title || "").toLowerCase().includes(q);
+    });
+
+    listGrid.innerHTML = "";
+    items.forEach((r) => {
+      const row = document.createElement("div");
+      row.className = "tone";
+
+      const img = document.createElement("img");
+      img.className = "thumb";
+      img.src = getDisplayImage(r);
+      img.alt = r.title || "";
+      img.loading = "lazy";
+      img.onerror = () => { img.onerror = null; img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII="; };
+
+      const name = document.createElement("div");
+      name.className = "tone-name";
+      name.textContent = r.title || "";
+
+      const play = document.createElement("button");
+      play.className = "btn play";
+      play.dataset.play = r.id;
+      setPlayIcon(play);
+      play.addEventListener("click", (e) => {
+        e.stopPropagation();
+        playToggle(r.id, r.audio, play);
+      });
+const actions = document.createElement("div");
+      actions.className = "tone-actions";
+
+      const subscribe = document.createElement("button");
+      subscribe.className = "btn primary subscribe";
+      subscribe.textContent = "اشتراك";
+      subscribe.addEventListener("click", (e) => {
+        e.stopPropagation();
+        // List card does not execute subscription; it only opens details
+        openDetails(r.id);
+      }, { signal: listAbort.signal });
+
+      actions.append(play, subscribe);
+      row.append(img, name, actions);
+      listGrid.appendChild(row);
+    });
+
+    if (items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "لا توجد نتائج.";
+      listGrid.appendChild(empty);
+    }
+  }
+
+
+  function renderCategories() {
+    categoriesGrid.innerHTML = "";
+    window.CATEGORIES.forEach((cat, index) => {
+      const btn = document.createElement("button");
+      btn.className = "cat-card";
+      btn.style.animationDelay = `${index * 80}ms`;
+
+      const bg = document.createElement("div");
+      bg.className = "cat-bg";
+      bg.style.backgroundImage = `url('${cat.image || ""}')`;
+
+      const overlay = document.createElement("div");
+      overlay.className = "cat-overlay";
+
+      const shine = document.createElement("div");
+      shine.className = "cat-shine";
+
+      const name = document.createElement("div");
+      name.className = "cat-name";
+      name.textContent = cat.name;
+
+      btn.append(bg, overlay, shine, name);
+      btn.onclick = () => openList(cat.id);
+      categoriesGrid.appendChild(btn);
+    });
+  }
+
+  function openList(catId, opts = {}) {
+    const __push = opts.push !== false;
+    stopPreview();
+    selectedCategory = catId;
+    selectedRingtoneId = null;
+
+    const cat = window.CATEGORIES.find(c => c.id === catId);
+    setHeader(cat ? cat.name : "النغمات", true);
+
+    // Search UI
+    currentQuery = "";
+    if (searchInput) searchInput.value = "";
+    if (searchBar) searchBar.classList.add("hidden");
+    if (searchBtn) searchBtn.classList.remove("hidden");
+
+    showView("list");
+    renderList(catId, currentQuery);
+
+    if (__push) history.pushState({ view: "list", catId }, "", `#list-${encodeURIComponent(catId)}`);
   }
 
   function makeSmsLink(number, body) {
-    const enc = encodeURIComponent(body);
-    return `sms:${number}?&body=${enc}`;
+    const encoded = encodeURIComponent(body || "");
+    return `sms:${number}?&body=${encoded}`;
   }
 
   async function copyToClipboard(text) {
@@ -750,266 +406,289 @@ function normalizeRingtone(r, idx) {
       ta.value = text;
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand("copy"); } catch {}
-      document.body.removeChild(ta);
-      return true;
+      const ok = document.execCommand("copy");
+      ta.remove();
+      return ok;
     }
   }
 
-  function renderSubscriptions(t) {
-    if (!subsGrid) return;
+  function openDetails(ringtoneId, opts = {}) {
+    const __push = opts.push !== false;
+    stopPreview();
+    if (searchBtn) searchBtn.classList.add("hidden");
+    if (searchBar) searchBar.classList.add("hidden");
+    selectedRingtoneId = ringtoneId;
+    const raw = (window.RINGTONES || []).find(x => x.id === ringtoneId);
+    if (!raw) return;
+    const r = normalizeRingtone(raw);
+
+    setHeader(r.title, true);
+    showView("details");
+
+    detailsImage.src = getDisplayImage(r);
+    detailsImage.alt = r.title;
+    detailsImage.onerror = () => { detailsImage.onerror = null; detailsImage.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII="; };
+    detailsName.textContent = r.title;
+
     subsGrid.innerHTML = "";
+    window.CARRIERS.forEach((c) => {
+      const code = (r.codes?.[c.key]?.code || r.codes?.[(c.key === "yemen" ? "yemenMobile" : c.key)]?.code || "");
+      const box = document.createElement("div");
+      box.className = "sub-card";
 
-    COMPANIES.forEach((c) => {
-      const cfg = (t.codes || {})[c.key] || {};
-      const number = SERVICE_NUMBERS[c.key] || "";
-      const code = cfg.code || "";
+      const left = document.createElement("div");
+      left.className = "sub-left";
 
-      const item = document.createElement("div");
-      item.className = "sub-item";
-      item.innerHTML = `
-        <div class="sub-left">
-          <img class="company-logo" src="${c.logo}" alt="${safe(c.name)}" onerror="this.style.display='none'">
-          <div class="company-info">
-            <div class="company-name">${safe(c.name)}</div>
-            <div class="company-meta">
-              <div class="company-number">الرقم: <span class="mono">${safe(number)}</span></div>
-              <div class="company-code">الكود: <span class="mono">${safe(code)}</span></div>
-            </div>
-          </div>
-        </div>
-        <button class="btn btn-soft" type="button">اشتراك</button>
+      const logo = document.createElement("img");
+      logo.className = "carrier";
+      logo.src = c.logo;
+      logo.alt = c.name;
+
+      const meta = document.createElement("div");
+      meta.className = "sub-meta";
+      meta.innerHTML = `
+        <div class="cname">${c.name}</div>
+        <div class="cnum">رقم الخدمة: ${c.number || "-"}</div>
+        <div class="ccode">الكود: ${code || "-"}</div>
       `;
 
-      item.querySelector("button").addEventListener("click", async () => {
-        if (!number || !code) {
-          toastMsg("المعذرة، هذه النغمة غير موجودة في هذه الشركة");
+      left.append(logo, meta);
+
+      const btn = document.createElement("button");
+      btn.className = "btn primary";
+      btn.textContent = "اشتراك";
+      btn.onclick = async () => {
+        if (!c.number || !code) {
+          toastMsg("لا يوجد كود لهذه الشركة");
           return;
         }
-
-        // أوقف صوت التفاصيل قبل الانتقال للـ SMS
-        try { detailsAudio.pause(); } catch {}
-        setDetailsPlaying(false);
-
-        window.location.href = makeSmsLink(number, code);
-
-        // Copy fallback
+        window.location.href = makeSmsLink(c.number, code);
         setTimeout(async () => {
-          await copyToClipboard(code);
-          toastMsg("تم نسخ الكود للحافظة: " + code);
-        }, 550);
-      });
+          const ok = await copyToClipboard(code);
+          toastMsg(ok ? `تم نسخ الكود: ${code}` : "تعذر نسخ الكود");
+        }, 600);
+      };
 
-      subsGrid.appendChild(item);
+      box.append(left, btn);
+      subsGrid.appendChild(box);
+    });
+
+    if (__push) history.pushState({ view: "details", ringtoneId }, "", `#details-${encodeURIComponent(ringtoneId)}`);
+  }
+
+  function goBack() {
+    if (currentView === "details") {
+      // back to list
+      if (selectedCategory) openList(selectedCategory);
+      else openHome();
+      return;
+    }
+    if (currentView === "list") {
+      openHome();
+      return;
+    }
+    openHome();
+  }
+
+  function openHome(opts = {}) {
+    const __push = opts.push !== false;
+    stopPreview();
+    selectedCategory = null;
+    selectedRingtoneId = null;
+    setHeader("سمّع متصليك – أجمل الرنات", false);
+    if (searchBtn) searchBtn.classList.add("hidden");
+    if (searchBar) searchBar.classList.add("hidden");
+    showView("cats");
+    if (__push) history.pushState({ view: "categories" }, "", "#");
+  }
+
+  backBtn.addEventListener("click", goBack);
+
+  // Search controls (List view)
+  if (searchBtn) {
+    searchBtn.addEventListener("click", () => {
+      if (!searchBar) return;
+      const willShow = searchBar.classList.contains("hidden");
+      searchBar.classList.toggle("hidden", !willShow);
+      if (willShow && searchInput) searchInput.focus();
+      if (!willShow) {
+        currentQuery = "";
+        if (searchInput) searchInput.value = "";
+        if (selectedCategory) renderList(selectedCategory, currentQuery);
+      }
     });
   }
 
-  // ✅ openDetails مع خيار بدون push (للاسترجاع عند التحديث)
-  function openDetails(id, noPush) {
-    const t = R.find((x) => String(x.id) === String(id));
-    if (!t) return;
-
-    // ✅ حفظ آخر تفاصيل لعدم فقدانه عند Refresh
-    sessionStorage.setItem("lastDetailsId", String(id));
-
-    // توقف أي تشغيل سابق في التفاصيل
-    try { detailsAudio.pause(); } catch {}
-    detailsAudio.currentTime = 0;
-    clearDetailsAutoStop();
-    setDetailsPlaying(false);
-
-    if (detailsName) detailsName.textContent = t.title;
-    try { updateCrumbs(); } catch {}
-
-    if (detailsImage) {
-      detailsImage.src = t.image;
-      detailsImage.onerror = () => (detailsImage.src = "ringtones/images/placeholder.png");
-    }
-
-    if (detailsAudio) detailsAudio.src = t.audio;
-
-    toastMsg("");
-    renderSubscriptions(t);
-
-    if (noPush) {
-      showView("details");
-    } else {
-      pushView("details");
-    }
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      currentQuery = searchInput.value || "";
+      if (selectedCategory) renderList(selectedCategory, currentQuery);
+    });
   }
 
-  // ===============================
-  // Init History + Restore on Refresh
-  // ===============================
-  (function initHistory() {
-    const start = (location.hash || "").replace("#", "") || "categories";
-    history.replaceState({ __app: 1, view: start }, "", VIEW_KEY_TO_HASH(start));
-
-    // ✅ استرجاع صحيح عند Refresh
-    if (start === "list") {
-      const cat = sessionStorage.getItem("lastCategory");
-      if (cat) {
-        openCategory(cat, true);
-        return;
+  if (searchClear) {
+    searchClear.addEventListener("click", () => {
+      currentQuery = "";
+      if (searchInput) {
+        searchInput.value = "";
+        searchInput.focus();
       }
-      showView("categories");
+      if (selectedCategory) renderList(selectedCategory, currentQuery);
+    });
+  }
+
+  window.addEventListener("popstate", (e) => {
+    const st = (e && e.state) ? e.state : (history.state || {});
+    const h = location.hash || "";
+
+    const getFromHash = (prefix) => {
+      if (!h.startsWith(prefix)) return null;
+      try { return decodeURIComponent(h.slice(prefix.length)); } catch { return h.slice(prefix.length); }
+    };
+
+    if ((st && st.view === "details") || h.startsWith("#details-")) {
+      const id = (st && st.ringtoneId) || getFromHash("#details-");
+      if (id) openDetails(id, { push: false });
+      else openHome({ push: false });
       return;
     }
 
-    if (start === "details") {
-      const id = sessionStorage.getItem("lastDetailsId");
-      if (id) {
-        openDetails(id, true);
-        return;
-      }
-      showView("categories");
+    if ((st && st.view === "list") || h.startsWith("#list-")) {
+      const catId = (st && st.catId) || getFromHash("#list-");
+      if (catId) openList(catId, { push: false });
+      else openHome({ push: false });
       return;
     }
 
-    showView(start);
-  })();
+    openHome({ push: false });
+  });
 
-  // ---------- Bindings ----------
-  if (btnBackToCategories) {
-    btnBackToCategories.addEventListener("click", () => {
-      stopPreview();
-      safeBack('categories');
+
+  // Offline hint
+  function updateOnline() {
+    offlineHint.classList.toggle("hidden", navigator.onLine);
+  }
+  window.addEventListener("online", updateOnline);
+  window.addEventListener("offline", updateOnline);
+  updateOnline();
+
+  // Contact footer
+  function renderContact() {
+    const links = $("contactLinks");
+    const social = $("socialLinks");
+    if (!links || !social) return;
+
+    const c = window.CONTACT || {};
+    links.innerHTML = "";
+    social.innerHTML = "";
+
+    const phone = c.phone ? String(c.phone).trim() : "";
+    const whatsapp = c.whatsapp ? String(c.whatsapp).trim() : "";
+    const email = c.email ? String(c.email).trim() : "";
+
+    const ICON = {
+      phone: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.6 10.8c1.6 3 3.6 5 6.6 6.6l2.2-2.2c.3-.3.8-.4 1.2-.2 1 .4 2.2.7 3.3.7.7 0 1.1.4 1.1 1.1V20c0 .6-.5 1.1-1.1 1.1C10.3 21.1 2.9 13.7 2.9 4.1 2.9 3.5 3.4 3 4.1 3h3.3c.6 0 1.1.5 1.1 1.1 0 1.1.2 2.2.7 3.3.1.4 0 .9-.3 1.2l-2.3 2.2z"/></svg>`,
+      whatsapp: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/></svg>`,
+      email: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5L4 8V6l8 5 8-5v2z"/></svg>`
+    };
+
+    const makeCard = (label, value, href, iconSvg, color) => {
+      if (!value) return;
+      const a = document.createElement("a");
+      a.className = "contact-card";
+      a.href = href || "#";
+      a.target = "_blank";
+      a.rel = "noopener";
+
+      const ic = document.createElement("div");
+      ic.className = "contact-ic";
+      if (color) ic.style.color = color;
+      ic.innerHTML = iconSvg;
+
+      const meta = document.createElement("div");
+      meta.className = "contact-meta";
+
+      const l = document.createElement("div");
+      l.className = "contact-label";
+      l.textContent = label;
+
+      const v = document.createElement("div");
+      v.className = "contact-value";
+      v.textContent = value;
+
+      meta.append(l, v);
+      a.append(ic, meta);
+      links.appendChild(a);
+    };
+
+    makeCard("اتصال", phone, phone ? `tel:${phone}` : "", ICON.phone, "#7dd3fc");
+    makeCard("واتساب", whatsapp, whatsapp ? `https://wa.me/${String(whatsapp).replace(/\D/g, "")}` : "", ICON.whatsapp, "#25D366");
+    makeCard("ايميل", email, email ? `mailto:${email}` : "", ICON.email, "#a78bfa");
+
+    // Social icons (circular, one row)
+    const s = (c.social || {});
+    const SICON = {
+      instagram: { label:"Instagram", color:"#E1306C", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm10 2H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3zm-5 4.2A3.8 3.8 0 1 1 8.2 12 3.8 3.8 0 0 1 12 8.2zm0 2A1.8 1.8 0 1 0 13.8 12 1.8 1.8 0 0 0 12 10.2zM17.2 6.9a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2z"/></svg>`},
+      telegram: { label:"Telegram", color:"#2AABEE", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.8 4.6c.2-.8-.6-1.4-1.3-1.1L2.7 10.4c-.9.4-.8 1.7.1 2l4.6 1.5 1.8 5.7c.2.7 1.1.9 1.6.4l2.6-2.5 5.1 3.8c.6.4 1.4.1 1.6-.7l3-15zM9.6 14.2l8.8-7.6-6.9 9.1-.3 3.7-1.8-5.2z"/></svg>`},
+      x: { label:"X", color:"#ffffff", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2H22l-6.9 7.9L23 22h-6.7l-5.2-6.7L5.2 22H2l7.4-8.5L1 2h6.7l4.7 6.1L18.9 2zm-1.1 18h1.7L6.2 4H4.4l13.4 16z"/></svg>`},
+      youtube: { label:"YouTube", color:"#FF0000", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.9 4.6 12 4.6 12 4.6s-5.9 0-7.5.5A3 3 0 0 0 2.4 7.2 31 31 0 0 0 2 12a31 31 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.6.5 7.5.5 7.5.5s5.9 0 7.5-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 22 12a31 31 0 0 0-.4-4.8zM10 15.5v-7l6 3.5-6 3.5z"/></svg>`},
+      facebook: { label:"Facebook", color:"#1877F2", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 22v-8h2.7l.4-3H13.5V9.2c0-.9.2-1.5 1.5-1.5h1.6V5.1c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.1V11H8v3h2.2v8h3.3z"/></svg>`}
+    };
+
+    const addSocial = (key, url) => {
+      if (!url) return;
+      const meta = SICON[key];
+      if (!meta) return;
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.setAttribute("aria-label", meta.label);
+      a.title = meta.label;
+      a.style.color = meta.color;
+      a.innerHTML = meta.svg;
+      social.appendChild(a);
+    };
+
+    addSocial("instagram", s.instagram);
+    addSocial("telegram", s.telegram);
+    addSocial("x", s.x);
+    addSocial("youtube", s.youtube);
+    addSocial("facebook", s.facebook);
+  }
+
+  // PWA install prompt
+
+  let deferredPrompt = null;
+  const installBar = $("installBar");
+  const installBtn = $("installBtn");
+  const installLater = $("installLater");
+
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBar.classList.remove("hidden");
+  });
+
+  installBtn.addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    installBar.classList.add("hidden");
+  });
+
+  installLater.addEventListener("click", () => installBar.classList.add("hidden"));
+
+  // Service Worker
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./service-worker.js").catch(() => {});
     });
   }
 
-  if (btnBackToList) {
-    btnBackToList.addEventListener("click", () => {
-      try { detailsAudio.pause(); } catch {}
-      setDetailsPlaying(false);
-      safeBack('list');
-    });
-  }
-
-  if (mediaToggle) {
-    mediaToggle.addEventListener("click", toggleDetailsPlay);
-    mediaToggle.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") toggleDetailsPlay();
-    });
-  }
-
-  if (detailsAudio) {
-    detailsAudio.addEventListener("ended", () => setDetailsPlaying(false));
-    detailsAudio.addEventListener("pause", () => setDetailsPlaying(false));
-  }
-
-  // Start
+  // init
   renderCategories();
-})();
-/* --- single-line auto-fit (added as requested) --- */
-(function () {
-  function fitTextSingleLine(selector, minSize, limit) {
-    minSize = minSize || 10;
-
-    // Limit work on low-end mobiles (long lists can freeze the UI)
-    const nodes = Array.from(document.querySelectorAll(selector));
-    const els = (typeof limit === "number" && limit >= 0) ? nodes.slice(0, limit) : nodes;
-
-    els.forEach(function (el) {
-      // Reset to base first
-      var base = 14;
-      el.style.whiteSpace = "nowrap";
-      el.style.overflow = "hidden";
-      el.style.textOverflow = "ellipsis";
-      el.style.fontSize = base + "px";
-
-      // If it fits, keep it
-      if (el.scrollWidth <= el.clientWidth) return;
-
-      // Reduce until it fits or hits minSize
-      for (var size = base; size >= minSize; size--) {
-        el.style.fontSize = size + "px";
-        if (el.scrollWidth <= el.clientWidth) break;
-      }
-    });
-  }
-
-  function fitAll() {
-    fitTextSingleLine(".tone-name", 10, 40);
-    fitTextSingleLine(".company-name", 10);
-    fitTextSingleLine(".company-number", 10);
-    fitTextSingleLine(".company-code", 10);
-  }
-
-  // Run on load + resize
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", fitAll);
-  } else {
-    fitAll();
-  }
-  window.addEventListener("resize", fitAll);
-
-  // Also run when DOM changes (e.g., navigating between sections)
-  var t;
-  var obs = new MutationObserver(function () {
-    clearTimeout(t);
-    t = setTimeout(fitAll, 50);
-  });
-  obs.observe(document.body, { childList: true, subtree: true });
-})();
-
-
-// POPSTATE_GUARD_INTERNAL + DOUBLE_BACK_TO_EXIT
-const __EXIT_WINDOW_MS = 1500;
-let __lastBackAtRoot = 0;
-
-window.addEventListener("popstate", () => {
-  // إذا رجع المتصفح لحالة ليست من تطبيقنا (مثلاً صفحة سابقة خارج الموقع)، نعيده للرئيسية داخل الموقع
-  if (!history.state || history.state.__app !== 1) {
-    const fallback = "categories";
-
-    // "ضغطتين للخروج": عند الجذر، أول رجوع لا يخرج — يعطي تنبيه فقط
-    const isRoot = true; // عند عدم وجود state من تطبيقنا نعتبره محاولة خروج
-    const now = Date.now();
-    if (isRoot && (now - __lastBackAtRoot) > __EXIT_WINDOW_MS) {
-      __lastBackAtRoot = now;
-      // أعد تثبيت الحالة داخل التطبيق بدل الخروج
-      history.replaceState({ __app: 1, view: fallback }, "", VIEW_KEY_TO_HASH(fallback));
-      showView(fallback);
-      try { toast("اضغط رجوع مرة أخرى للخروج"); } catch(_) {}
-      return;
-    }
-    // إذا ضغط مرة ثانية بسرعة: نسمح بالخروج (لا نمنع المتصفح)
-    return;
-  }
-
-  // إن كانت من تطبيقنا: تابع العرض حسب state الحالي
-  if (history.state && history.state.view) {
-    showView(history.state.view);
-  }
-});
-
-
-// BACK_BUTTON_WIRING_FIX: اربط أزرار الرجوع بشكل مضمون
-(function(){
-  function onReady(fn){
-    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn);
-    else fn();
-  }
-  onReady(() => {
-    const b1 = document.getElementById("btnBackToCategories");
-    const b2 = document.getElementById("btnBackToList");
-
-    if (b1) {
-      b1.addEventListener("click", (e) => {
-        e.preventDefault();
-        try { safeBack("categories"); } catch(_) {
-          // fallback: اظهر الأقسام مباشرة
-          try { showView("categories"); } catch(_) {}
-        }
-      });
-    }
-    if (b2) {
-      b2.addEventListener("click", (e) => {
-        e.preventDefault();
-        try { safeBack("list"); } catch(_) {
-          try { showView("list"); } catch(_) {}
-        }
-      });
-    }
-  });
+  renderContact();
+  openHome();
 })();

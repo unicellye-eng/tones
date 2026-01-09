@@ -1,6 +1,6 @@
 {
-  "name": "مكتبة النغمات",
-  "short_name": "النغمات",
+  "name": "unitones",
+  "short_name": "unitones",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#0b1b2b",
