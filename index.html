@@ -44,6 +44,15 @@
       <button id="searchBtn" class="icon-btn hidden" aria-label="بحث">
         <span class="search-ic">⌕</span>
       </button>
+
+      <!-- Install mini card (hidden by default حتى لو CSS/JS ما انحمل) -->
+      <div id="installBar" class="install-card hidden" style="display:none" aria-live="polite">
+        <div class="install-card-text">ثبّت التطبيق</div>
+        <div class="install-card-actions">
+          <button id="installBtn" class="btn primary btn-sm">تثبيت</button>
+          <button id="installLater" class="btn ghost btn-sm">لاحقًا</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -92,13 +101,7 @@
 
   <div id="offlineHint" class="offline hidden">⚠️ لا يوجد اتصال بالإنترنت</div>
 
-  <div id="installBar" class="install hidden">
-    <span>ثبّت التطبيق</span>
-    <div class="install-actions">
-      <button id="installBtn" class="btn primary">تثبيت</button>
-      <button id="installLater" class="btn ghost">لاحقًا</button>
-    </div>
-  </div>
+  <!-- (تم نقل بطاقة التثبيت للأعلى بجوار العنوان) -->
 
   <script src="./data.js"></script>
   <script src="./app.js"></script>

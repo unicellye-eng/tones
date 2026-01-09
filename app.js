@@ -659,26 +659,71 @@ const actions = document.createElement("div");
 
   // PWA install prompt
 
+  const isStandalone = () =>
+    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+    window.navigator.standalone === true;
+
   let deferredPrompt = null;
+  let installTimeoutId = null;
+
   const installBar = $("installBar");
   const installBtn = $("installBtn");
   const installLater = $("installLater");
 
+  const DISMISS_KEY = "pwa_install_dismissed_at";
+  // "لاحقًا" يخفي البطاقة لمدة 24 ساعة فقط
+  const DISMISS_MS = 24 * 60 * 60 * 1000;
+
+  const wasDismissedRecently = () => {
+    const ts = Number(localStorage.getItem(DISMISS_KEY) || 0);
+    if (!ts) return false;
+    return Date.now() - ts < DISMISS_MS;
+  };
+
+  const maybeShowInstallBar = () => {
+    if (!deferredPrompt) return;
+    if (isStandalone()) return;
+    if (wasDismissedRecently()) return;
+    installBar.classList.remove("hidden");
+    installBar.style.display = "flex";
+  };
+
   window.addEventListener("beforeinstallprompt", (e) => {
+    // Chrome/Edge فقط: نخزّن الحدث ونمنع ظهور نافذة التثبيت التلقائي
     e.preventDefault();
     deferredPrompt = e;
-    installBar.classList.remove("hidden");
+
+    // لا نظهر شريط التثبيت مباشرة: ننتظر 20 ثانية
+    if (installTimeoutId) clearTimeout(installTimeoutId);
+    installTimeoutId = setTimeout(maybeShowInstallBar, 20000);
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    if (installTimeoutId) clearTimeout(installTimeoutId);
+    installBar.classList.add("hidden");
+    installBar.style.display = "none";
+    localStorage.removeItem(DISMISS_KEY);
   });
 
   installBtn.addEventListener("click", async () => {
     if (!deferredPrompt) return;
+    // prompt() لازم يكون داخل تفاعل المستخدم (click)
     deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
-    deferredPrompt = null;
-    installBar.classList.add("hidden");
+    try {
+      await deferredPrompt.userChoice;
+    } finally {
+      deferredPrompt = null;
+      installBar.classList.add("hidden");
+      installBar.style.display = "none";
+    }
   });
 
-  installLater.addEventListener("click", () => installBar.classList.add("hidden"));
+  installLater.addEventListener("click", () => {
+    installBar.classList.add("hidden");
+    installBar.style.display = "none";
+    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+  });
 
   // Service Worker
   if ("serviceWorker" in navigator) {

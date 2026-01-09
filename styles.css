@@ -159,6 +159,7 @@ img{max-width:100%;display:block}
   height: 56px;
   padding: 0 16px;
   gap: 12px;
+  position: relative;
 }
 .icon-btn{
   width: 40px;
@@ -304,6 +305,13 @@ img{max-width:100%;display:block}
 .btn.play{min-width: 54px; text-align:center; font-size: 16px;}
 .btn.play:hover{background: rgba(255,255,255,.06);}
 
+/* Smaller buttons (for install mini card) */
+.btn.btn-sm{
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 12px;
+}
+
 /* Details */
 .details-card{
   border: 1px solid hsl(var(--border));
@@ -413,7 +421,7 @@ img{max-width:100%;display:block}
 }
 .social-row svg{ width:20px; height:20px; }
 
-/* Offline + install bars */
+/* Offline + install UI */
 .offline{
   position:fixed; top:10px; left:10px; right:10px;
   padding: 10px;
@@ -425,17 +433,30 @@ img{max-width:100%;display:block}
 }
 .offline.hidden{display:none}
 
-.install{
-  position:fixed; bottom: 12px; left: 12px; right: 12px;
-  display:flex; align-items:center; justify-content:space-between; gap: 10px;
-  padding: 12px;
-  border-radius: 18px;
-  border: 1px solid hsl(var(--border));
-  background: rgba(0,0,0,.35);
-  backdrop-filter: blur(8px);
+/* Install mini card (top, next to title) */
+.install-card{
+  position:absolute;
+  top: 8px;
+  left: 16px;
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.25);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0,0,0,.25);
 }
-.install.hidden{display:none}
-.install-actions{display:flex; gap: 8px;}
+.install-card.hidden{display:none}
+.install-card-text{font-size: 12px; font-weight: 800; white-space: nowrap;}
+.install-card-actions{display:flex; gap: 8px;}
+
+/* On narrow screens keep it compact */
+@media (max-width: 420px){
+  .install-card{left: 10px; gap: 8px; padding: 7px 8px;}
+  .install-card-text{display:none;}
+}
 
 
 /* Search (List view) */
