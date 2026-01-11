@@ -46,6 +46,26 @@ function setPauseIcon(btn) {
   let currentPlayingId = null;
   let isStoppingPreview = false;
 
+
+  // Smooth audio fade to reduce "click/pop" when switching tones (especially on Android)
+  function fadeTo(audioEl, targetVolume, durationMs) {
+    try {
+      const start = (audioEl && typeof audioEl.volume === "number") ? audioEl.volume : 1;
+      const end = Math.max(0, Math.min(1, Number(targetVolume)));
+      const dur = Math.max(0, Number(durationMs) || 0);
+      if (!dur) { try { audioEl.volume = end; } catch(e) {} return; }
+
+      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      const step = (t) => {
+        const now = (typeof t === "number") ? t : ((window.performance && performance.now) ? performance.now() : Date.now());
+        const p = Math.min(1, (now - t0) / dur);
+        try { audioEl.volume = start + (end - start) * p; } catch(e) {}
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    } catch(e) {}
+  }
+
   let currentView = "categories"; // categories | list | details
   let selectedCategory = null;     // category id
   let selectedRingtoneId = null;
@@ -56,6 +76,46 @@ function setPauseIcon(btn) {
 
   // Auto-generated images for "بالاسم" content
   const generatedImageCache = new Map();
+
+  // Lazily generate "بالاسم" thumbnails only when they become visible.
+  let byNameThumbObserver = null;
+  function ensureByNameThumbObserver() {
+    if (byNameThumbObserver) return byNameThumbObserver;
+    if (!("IntersectionObserver" in window)) return null;
+
+    byNameThumbObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const img = entry.target;
+        byNameThumbObserver.unobserve(img);
+
+        const rid = img?.dataset?.rid;
+        const title = img?.dataset?.title || "";
+        if (!rid) return;
+
+        if (generatedImageCache.has(rid)) {
+          if (img.isConnected) img.src = generatedImageCache.get(rid);
+          return;
+        }
+
+        const doWork = () => {
+          try {
+            const url = makeNameImageDataUrl(extractNameOnly(title));
+            generatedImageCache.set(rid, url);
+            if (img.isConnected) img.src = url;
+          } catch (e) {}
+        };
+
+        if ("requestIdleCallback" in window) {
+          requestIdleCallback(doWork, { timeout: 1200 });
+        } else {
+          setTimeout(doWork, 0);
+        }
+      });
+    }, { root: null, threshold: 0.1 });
+
+    return byNameThumbObserver;
+  }
 
   function isByNameRingtone(r) {
     return ((r?.categories || []).some(n => String(n || "").includes("بالاسم")));
@@ -121,9 +181,20 @@ function setPauseIcon(btn) {
     return canvas.toDataURL("image/png");
   }
 
-  function getDisplayImage(r) {
+  function getDisplayImage(r, opts = {}) {
     if (!r) return "";
-    if (!isByNameRingtone(r)) return r.image || "";
+    const byName = isByNameRingtone(r);
+    if (!byName) return r.image || "";
+
+    // By-name images can be expensive to generate (canvas -> dataURL).
+    // Default behavior: return a lightweight fallback, and generate lazily for visible items.
+    const fallback =
+      r.image ||
+      ((r?.categories || []).some(n => String(n || "").includes("أدعية")) ? "ringtones/images/cat-name-duas.jpg" : "ringtones/images/cat-name-replies.jpg");
+
+    const generate = !!opts.generate;
+    if (!generate) return fallback;
+
     if (generatedImageCache.has(r.id)) return generatedImageCache.get(r.id);
     const nameOnly = extractNameOnly(r.title);
     const url = makeNameImageDataUrl(nameOnly);
@@ -144,11 +215,31 @@ function setPauseIcon(btn) {
       ...obj,
       id,
       title,
+      // cached lowercase title for fast search/filter
+      _titleLC: title.toLowerCase(),
       audio,
       image,
       categories,
       rank
     };
+  }
+
+  // === Data caches (performance) ===
+  // Normalize RINGTONES once, and cache per-category filtered/sorted lists.
+  let __allNormalized = null;
+  const __catCache = new Map();
+
+  function getAllNormalizedRingtones() {
+    if (__allNormalized) return __allNormalized;
+    __allNormalized = (window.RINGTONES || []).map(normalizeRingtone);
+    return __allNormalized;
+  }
+
+  function getCachedCategory(catId, builder) {
+    if (__catCache.has(catId)) return __catCache.get(catId);
+    const value = builder();
+    __catCache.set(catId, value);
+    return value;
   }
 
   function showView(name) {
@@ -173,11 +264,15 @@ function setPauseIcon(btn) {
     if (isStoppingPreview) return;
     isStoppingPreview = true;
     try {
+      // Fade out quickly before stopping to avoid click/pop
+      try { previewAudio.volume = 0; } catch(e) {}
       previewAudio.pause();
       previewAudio.currentTime = 0;
       previewAudio.removeAttribute("src");
       previewAudio._retry = 0;
-    try { previewAudio.load(); } catch(e) {}
+      try { previewAudio.load(); } catch(e) {}
+      // Restore base volume for next play (we fade-in after play)
+      try { previewAudio.volume = 1; } catch(e) {}
     } catch (e) {}
     currentPlayingId = null;
     try { localStorage.removeItem(LAST_PLAYED_KEY); } catch (e) {}
@@ -200,8 +295,11 @@ function setPauseIcon(btn) {
       return;
     }
     stopPreview();
+    // Start muted then fade-in to avoid click/pop on start/switch
+    try { previewAudio.volume = 0; } catch(e) {}
     previewAudio.src = audioUrl;
     previewAudio.play().then(() => {
+      fadeTo(previewAudio, 1, 180);
       currentPlayingId = id;
       try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
       setPauseIcon(btn);
@@ -210,6 +308,7 @@ function setPauseIcon(btn) {
       if (previewAudio._retry === 0) {
         previewAudio._retry = 1;
         try { previewAudio.currentTime = 0; previewAudio.play().then(() => {
+          fadeTo(previewAudio, 1, 180);
           currentPlayingId = id;
           try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
           setPauseIcon(btn);
@@ -241,10 +340,12 @@ function setPauseIcon(btn) {
   });
 
   function ringtonesForCategory(catId) {
-    const catObj = (window.CATEGORIES || []).find(c => c.id === catId);
-    const catName = catObj ? catObj.name : "";
+    // Heavy work (normalization + sorting) is cached per category.
+    return getCachedCategory(catId, () => {
+      const catObj = (window.CATEGORIES || []).find(c => c.id === catId);
+      const catName = catObj ? catObj.name : "";
 
-    const all = (window.RINGTONES || []).map(normalizeRingtone);
+      const all = getAllNormalizedRingtones();
 
     const hasCat = (r, name) => (r.categories || []).includes(name);
 
@@ -264,23 +365,24 @@ function setPauseIcon(btn) {
       });
     };
 
-    if (catId === "latest") {
+      if (catId === "latest") {
       // "الأحدث" يعرض كل النغمات من كل الأقسام
       // مع استثناء أي نغمة تنتمي لأي قسم يحتوي اسمه على كلمة "بالاسم"
       const filtered = all.filter(r => !((r.categories || []).some(n => String(n || "").includes("بالاسم"))));
-      return filtered.slice().sort((a, b) => (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0));
-    }
+        return filtered.slice().sort((a, b) => (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0));
+      }
 
-    if (catId === "popular") {
+      if (catId === "popular") {
       // "الأكثر تحميلًا" بحسب ترتيب rank إن وجد
       const popularName = ((window.CATEGORIES || []).find(c => c.id === "popular") || {}).name || "الأكثر تحميلًا";
       const filtered = all.filter(r => hasCat(r, popularName));
-      return sortByRankOrDate(filtered, popularName);
-    }
+        return sortByRankOrDate(filtered, popularName);
+      }
 
     // باقي الأقسام
-    const filtered = catName ? all.filter(r => hasCat(r, catName)) : all;
-    return catName ? sortByRankOrDate(filtered, catName) : filtered;
+      const filtered = catName ? all.filter(r => hasCat(r, catName)) : all;
+      return catName ? sortByRankOrDate(filtered, catName) : filtered;
+    });
   }
 
   function renderList(catId, query) {
@@ -289,58 +391,126 @@ function setPauseIcon(btn) {
     listAbort = new AbortController();
 
     const q = (query || "").trim().toLowerCase();
-    const items = ringtonesForCategory(catId).filter(r => {
+    const allItems = ringtonesForCategory(catId).filter(r => {
       if (!q) return true;
-      return String(r.title || "").toLowerCase().includes(q);
+      return (r._titleLC || String(r.title || "").toLowerCase()).includes(q);
     });
 
+    const PAGE_SIZE = q ? allItems.length : 20;
+    let page = 0;
+
+    let loadingMore = false;
     listGrid.innerHTML = "";
-    items.forEach((r) => {
-      const row = document.createElement("div");
-      row.className = "tone";
 
-      const img = document.createElement("img");
-      img.className = "thumb";
-      img.src = getDisplayImage(r);
-      img.alt = r.title || "";
-      img.loading = "lazy";
-      img.onerror = () => { img.onerror = null; img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII="; };
+    const observer = ensureByNameThumbObserver();
 
-      const name = document.createElement("div");
-      name.className = "tone-name";
-      name.textContent = r.title || "";
+    function renderPage() {
+      const start = page * PAGE_SIZE;
+      const end = Math.min(allItems.length, start + PAGE_SIZE);
+      const items = allItems.slice(start, end);
 
-      const play = document.createElement("button");
-      play.className = "btn play";
-      play.dataset.play = r.id;
-      setPlayIcon(play);
-      play.addEventListener("click", (e) => {
-        e.stopPropagation();
-        playToggle(r.id, r.audio, play);
+      items.forEach((r) => {
+        const row = document.createElement("div");
+        row.className = "tone";
+
+        const img = document.createElement("img");
+        img.className = "thumb";
+
+        const isByName = isByNameRingtone(r);
+        if (isByName) {
+          // Lightweight fallback first, then generate on visibility
+          img.src = getDisplayImage(r, { generate: false });
+          img.dataset.rid = r.id;
+          img.dataset.title = r.title || "";
+          img.loading = "lazy";
+          if (observer) observer.observe(img);
+        } else {
+          img.src = getDisplayImage(r);
+          img.loading = "lazy";
+        }
+
+        img.alt = r.title || "";
+        img.onerror = () => { img.onerror = null; img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII="; };
+
+        const name = document.createElement("div");
+        name.className = "tone-name";
+        name.textContent = r.title || "";
+
+        const play = document.createElement("button");
+        play.className = "btn play";
+        play.dataset.play = r.id;
+        setPlayIcon(play);
+        play.addEventListener("click", (e) => {
+          e.stopPropagation();
+          playToggle(r.id, r.audio, play);
+        }, { signal: listAbort.signal });
+
+        const actions = document.createElement("div");
+        actions.className = "tone-actions";
+
+        const subscribe = document.createElement("button");
+        subscribe.className = "btn primary subscribe";
+        subscribe.textContent = "اشتراك";
+        subscribe.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openDetails(r.id);
+        }, { signal: listAbort.signal });
+
+        row.addEventListener("click", () => {
+          openDetails(r.id);
+        }, { signal: listAbort.signal });
+
+        actions.append(play, subscribe);
+        row.append(img, name, actions);
+        listGrid.appendChild(row);
       });
-const actions = document.createElement("div");
-      actions.className = "tone-actions";
 
-      const subscribe = document.createElement("button");
-      subscribe.className = "btn primary subscribe";
-      subscribe.textContent = "اشتراك";
-      subscribe.addEventListener("click", (e) => {
-        e.stopPropagation();
-        // List card does not execute subscription; it only opens details
-        openDetails(r.id);
-      }, { signal: listAbort.signal });
+      // Update / add "Load more" button
+      const existingBtn = document.getElementById("loadMoreBtn");
+      if (existingBtn) existingBtn.remove();
+      const existingSentinel = document.getElementById("loadMoreSentinel");
+      if (existingSentinel) existingSentinel.remove();
 
-      actions.append(play, subscribe);
-      row.append(img, name, actions);
-      listGrid.appendChild(row);
-    });
+      // Infinite scroll: append a sentinel that loads the next page when it enters view
+      if (end < allItems.length) {
+        const sentinel = document.createElement("div");
+        sentinel.id = "loadMoreSentinel";
+        sentinel.className = "load-more-sentinel";
+        sentinel.innerHTML = `
+          <div class="spinner" aria-hidden="true"></div>
+          <div class="load-more-text">جاري تحميل المزيد...</div>
+        `;
+        listGrid.appendChild(sentinel);
 
-    if (items.length === 0) {
+        const io = new IntersectionObserver((entries) => {
+          for (const e of entries) {
+            if (!e.isIntersecting) continue;
+            io.disconnect();
+            if (loadingMore) return;
+            loadingMore = true;
+            page += 1;
+            requestAnimationFrame(() => {
+              loadingMore = false;
+              renderPage();
+            });
+            break;
+          }
+        }, { root: null, rootMargin: "300px 0px", threshold: 0.01 });
+
+        io.observe(sentinel);
+        listAbort.signal.addEventListener("abort", () => io.disconnect(), { once: true });
+      }
+    }
+
+    if (allItems.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty";
       empty.textContent = "لا توجد نتائج.";
       listGrid.appendChild(empty);
+      return;
     }
+
+    renderPage();
   }
 
 
@@ -425,7 +595,7 @@ const actions = document.createElement("div");
     setHeader(r.title, true);
     showView("details");
 
-    detailsImage.src = getDisplayImage(r);
+    detailsImage.src = getDisplayImage(r, { generate: true });
     detailsImage.alt = r.title;
     detailsImage.onerror = () => { detailsImage.onerror = null; detailsImage.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII="; };
     detailsName.textContent = r.title;
@@ -519,10 +689,15 @@ const actions = document.createElement("div");
     });
   }
 
+  // Debounced search (keeps typing smooth on weaker phones)
+  let __searchT = null;
   if (searchInput) {
     searchInput.addEventListener("input", () => {
       currentQuery = searchInput.value || "";
-      if (selectedCategory) renderList(selectedCategory, currentQuery);
+      if (__searchT) clearTimeout(__searchT);
+      __searchT = setTimeout(() => {
+        if (selectedCategory) renderList(selectedCategory, currentQuery);
+      }, 140);
     });
   }
 

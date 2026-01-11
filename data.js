@@ -3,10 +3,10 @@
 
 window.CATEGORIES = [
   { id: "latest", name: "الأحدث", image: "ringtones/images/cat-latest.jpg" },
-  { id: "popular", name: "الأكثر تحميلًا", image: "ringtones/images/cat-popular.jpg" },
+  { id: "popular", name: "الأكثر تحميلا", image: "ringtones/images/cat-popular.jpg" },
   { id: "duas", name: "أدعية", image: "ringtones/images/cat-duas.jpg" },
   { id: "nasheeds", name: "أناشيد", image: "ringtones/images/cat-nasheeds.jpg" },
-  { id: "songs", name: "أغاني", image: "ringtones/images/cat-songs.jpg" },
+  { id: "songs", name: "أشعار", image: "ringtones/images/cat-songs.jpg" },
   { id: "zawamel", name: "زوامل", image: "ringtones/images/cat-zawamel.jpg" },
   { id: "name-replies", name: "ردود آلية بالاسم", image: "ringtones/images/cat-name-replies.jpg" },
   { id: "name-duas", name: "أدعية بالاسم", image: "ringtones/images/cat-name-duas.jpg" },
@@ -37,13 +37,13 @@ window.RINGTONES = [
 {
     id: "sabr",
     title: "والصبر ياقلبي - ابراهيم الدوله",
-    categories: ["الأكثر تحميلًا", "زوامل"],
+    categories: ["الأكثر تحميلا", "زوامل"],
     image: "ringtones/images/a1.jpg",
     audio: "ringtones/audio/sabr.mp3",
     createdAt: "2026-01-04T12:00:00Z",
   rank: {
     "زوامل": 1,
-    "الأكثر تحميلًا": 1
+    "الأكثر تحميلا": 1
   },
   codes: {
     yemen:   { code: "9930010088" },
@@ -78,13 +78,13 @@ window.RINGTONES = [
 {
   id: "song",
   title: "واقف انا - حسن الاميري",
-  categories: ["أغاني", "الأكثر تحميلًا"],
+  categories: ["أناشيد", "الأكثر تحميلا"],
   image: "ringtones/images/a4.jpg",
   audio: "ringtones/audio/waqef-ana.mp3",
   createdAt: "2026-01-04T12:00:00Z",
   rank: {
-    "أغاني": 1,
-    "الأكثر تحميلًا": 3
+    "أناشيد": 4,
+    "الأكثر تحميلا": 3
   },
   codes: {
     yemen:   { code: "SON02" },
@@ -99,6 +99,9 @@ window.RINGTONES = [
   categories: ["زوامل"],
   image: "ringtones/images/a1.jpg",
   audio: "ringtones/audio/a2.mp3",
+  rank: {
+    "الأحدث": 1,
+  },
   codes: {
     yemen:   { code: "ZAM01" },
     sabafon: { code: "ZAM01" },
@@ -126,13 +129,13 @@ window.RINGTONES = [
 {
   id: "nasheed",
   title: "قف بالخضوع-عبدالعظيم عزالدين",
-  categories: ["أناشيد", "الأكثر تحميلًا"],
+  categories: ["أناشيد", "الأكثر تحميلا"],
   image: "ringtones/images/a2.jpg",
   audio: "ringtones/audio/ab1.mp3",
   createdAt: "2026-01-04T12:00:00Z",
   rank: {
-    "أناشيد": 1,
-    "الأكثر تحميلًا": 2,
+    "أناشيد": 2,
+    "الأكثر تحميلا": 2,
   },
   codes: {
     yemen:   { code: "SON02" },
@@ -149,7 +152,7 @@ window.RINGTONES = [
   audio: "ringtones/audio/ab2.mp3",
 createdAt: "2026-01-04T12:00:00Z",
   rank: {
-    "أناشيد": 2,
+    "أناشيد": 1,
   },
   codes: {
     yemen:   { code: "SON02" },
@@ -2283,7 +2286,7 @@ createdAt: "2026-01-04T12:00:00Z",
     image: "ringtones/images/barcelona.jpg",
     audio: "ringtones/audio/barcelona.mp3",
 rank: {
-    "رياضية": 2,
+    "رياضية": 4,
   },
     codes: {
       yemen:{code:""},
@@ -2298,7 +2301,7 @@ rank: {
     image: "ringtones/images/real_madrid.jpg",
     audio: "ringtones/audio/real_madrid.mp3",
 rank: {
-    "رياضية": 1,
+    "رياضية": 3,
   },
     codes: {
       yemen:{code:""},

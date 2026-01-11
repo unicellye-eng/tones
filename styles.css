@@ -522,6 +522,9 @@ img{max-width:100%;display:block}
   align-items: stretch;
   gap: 10px;
   padding: 10px;
+  /* Faster scrolling for long lists: let the browser skip offscreen rendering */
+  content-visibility: auto;
+  contain-intrinsic-size: 220px 260px;
   transform: translateZ(0);
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
@@ -573,4 +576,36 @@ img{max-width:100%;display:block}
 [data-play]:active {
   outline: none;
   box-shadow: none;
+}
+
+
+/* Load more button for long lists (prevents UI freeze with huge catalogs) */
+.btn.load-more{display:block;width:100%;margin:12px 0;padding:14px 12px;border-radius:14px;}
+
+
+/* Infinite scroll sentinel */
+.load-more-sentinel{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  width:100%;
+  margin:14px 0;
+  padding:14px 12px;
+  border-radius:14px;
+  opacity:.85;
+}
+.load-more-sentinel .spinner{
+  width:18px;
+  height:18px;
+  border-radius:999px;
+  border:2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+}
+.load-more-sentinel .load-more-text{
+  font-size:14px;
+}
+@keyframes spin{
+  to{ transform: rotate(360deg); }
 }
