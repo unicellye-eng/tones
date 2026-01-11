@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ar" dir="rtl" class="dark">
+<head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'">
+<meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>سمّع متصليك – أجمل الرنات</title>
+  <meta name="description" content="مكتبة نغمات يونسيل تكنولوجي" />
+  <meta name="theme-color" content="#1565C0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="النغمات" />
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/png" href="./icon-192.png" />
+  <link rel="apple-touch-icon" href="./icon-192.png" />
+
+  <link rel="stylesheet" href="./styles.css" />
+
+<style>
+/* Ultra Dark Unicell Header */
+.app-header, header, .topbar {
+  background: #041A3A !important;
+}
+.app-header *, header *, .topbar * {
+  color: #ffffff !important;
+}
+</style>
+
+</head>
+<body>
+  <header class="app-header safe-top">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none'">
+<div class="header-inner">
+      <button id="backBtn" class="icon-btn hidden" aria-label="رجوع">
+        <span class="chev">›</span>
+      </button>
+
+      <div class="brand">
+        <img id="headerLogo" src="./icon-192.png" alt="Logo" class="logo">
+        <h1 id="headerTitle" class="header-title">سمّع متصليك – أجمل الرنات</h1>
+      </div>
+
+      <button id="searchBtn" class="icon-btn hidden" aria-label="بحث">
+        <span class="search-ic">⌕</span>
+      </button>
+
+      <!-- Install mini card (hidden by default حتى لو CSS/JS ما انحمل) -->
+      <div id="installBar" class="install-card hidden" style="display:none" aria-live="polite">
+        <div class="install-card-text">ثبّت التطبيق</div>
+        <div class="install-card-actions">
+          <button id="installBtn" class="btn primary btn-sm">تثبيت</button>
+          <button id="installLater" class="btn ghost btn-sm">لاحقًا</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main safe-bottom">
+    <!-- Categories -->
+    <section id="viewCategories" class="view">
+      <div class="pad">
+        <div id="categoriesGrid" class="cats-grid"></div>
+      </div>
+
+      <footer class="footer">
+        <div class="footer-card">
+          <div class="footer-title">التواصل</div>
+          <div class="contact-cards" id="contactLinks"></div>
+          <div class="social-row" id="socialLinks"></div>
+        </div>
+      </footer>
+    </section>
+
+    <!-- List -->
+    <section id="viewList" class="view hidden">
+      <div class="pad">
+        <div id="searchBar" class="search-bar hidden">
+          <input id="searchInput" class="search-input" type="search" placeholder="ابحث عن نغمة..." autocomplete="off" />
+          <button id="searchClear" class="icon-btn" aria-label="مسح">✕</button>
+        </div>
+        <div id="listGrid" class="list"></div>
+      </div>
+    </section>
+
+    <!-- Details -->
+    <section id="viewDetails" class="view hidden">
+      <div class="pad">
+        <div class="details-card">
+          <img id="detailsImage" class="details-img" alt="">
+          <div id="detailsName" class="details-name"></div>
+          <div id="subsGrid" class="subs"></div>
+
+          <div id="toast" class="toast hidden"></div>
+        </div>
+
+        <div class="hint"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="offlineHint" class="offline hidden">⚠️ لا يوجد اتصال بالإنترنت</div>
+
+  <!-- (تم نقل بطاقة التثبيت للأعلى بجوار العنوان) -->
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+  <script src="./register-sw.js"></script>
+</body>
+</html>
