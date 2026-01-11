@@ -69,6 +69,9 @@ window.RINGTONES = [
   categories: ["أناشيد"],
   image: "ringtones/images/a2.jpg",
   audio: "ringtones/audio/alf.mp3",
+  rank: {
+    "أناشيد": 4,
+  },
   codes: {
     yemen:   { code: "NAS01" },
     sabafon: { code: "NAS01" },
@@ -83,7 +86,7 @@ window.RINGTONES = [
   audio: "ringtones/audio/waqef-ana.mp3",
   createdAt: "2026-01-04T12:00:00Z",
   rank: {
-    "أناشيد": 4,
+    "أناشيد": 5,
     "الأكثر تحميلا": 3
   },
   codes: {
@@ -100,7 +103,7 @@ window.RINGTONES = [
   image: "ringtones/images/a1.jpg",
   audio: "ringtones/audio/a2.mp3",
   rank: {
-    "الأحدث": 1,
+    "الأحدث": 2,
   },
   codes: {
     yemen:   { code: "ZAM01" },
@@ -1625,6 +1628,9 @@ createdAt: "2026-01-04T12:00:00Z",
     categories: ["أدعية بالاسم"],
     image: "AUTO",
     audio: "ringtones/audio/dua_mhmd.mp3",
+    rank: {
+    "أدعية بالاسم": 1,
+  },
     codes: {
       yemen:{code:""},
       sabafon:{code:""},
@@ -2249,6 +2255,9 @@ createdAt: "2026-01-04T12:00:00Z",
     categories: ["رياضية"],
     image: "ringtones/images/liverpool.jpg",
     audio: "ringtones/audio/liverpool.mp3",
+    rank: {
+    "رياضية": 2,
+  },
     codes: {
       yemen:{code:""},
       sabafon:{code:""},
@@ -2273,6 +2282,9 @@ createdAt: "2026-01-04T12:00:00Z",
     categories: ["رياضية"],
     image: "ringtones/images/psg.jpg",
     audio: "ringtones/audio/psg.mp3",
+    rank: {
+    "رياضية": 1,
+  },
     codes: {
       yemen:{code:""},
       sabafon:{code:""},
@@ -2286,7 +2298,7 @@ createdAt: "2026-01-04T12:00:00Z",
     image: "ringtones/images/barcelona.jpg",
     audio: "ringtones/audio/barcelona.mp3",
 rank: {
-    "رياضية": 4,
+    "رياضية": 5,
   },
     codes: {
       yemen:{code:""},
@@ -2301,7 +2313,7 @@ rank: {
     image: "ringtones/images/real_madrid.jpg",
     audio: "ringtones/audio/real_madrid.mp3",
 rank: {
-    "رياضية": 3,
+    "رياضية": 4,
   },
     codes: {
       yemen:{code:""},

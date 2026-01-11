@@ -229,6 +229,13 @@ function setPauseIcon(btn) {
   let __allNormalized = null;
   const __catCache = new Map();
 
+  // If you edit data.js while the page is open, cached lists won't update.
+  // We clear caches when navigating into a category to reflect latest data.
+  function invalidateRingtoneCaches() {
+    __allNormalized = null;
+    __catCache.clear();
+  }
+
   function getAllNormalizedRingtones() {
     if (__allNormalized) return __allNormalized;
     __allNormalized = (window.RINGTONES || []).map(normalizeRingtone);
@@ -544,6 +551,7 @@ function setPauseIcon(btn) {
   function openList(catId, opts = {}) {
     const __push = opts.push !== false;
     stopPreview();
+    invalidateRingtoneCaches();
     selectedCategory = catId;
     selectedRingtoneId = null;
 
