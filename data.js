@@ -2,22 +2,22 @@
 // ملاحظة: الأقسام ثابتة، ويمكنك تعديل أسمائها فقط هنا.
 
 window.CATEGORIES = [
-  { id: "latest", name: "الأحدث", image: "ringtones/images/cat-latest.jpg" },
-  { id: "popular", name: "الأكثر تحميلا", image: "ringtones/images/cat-popular.jpg" },
-  { id: "duas", name: "أدعية", image: "ringtones/images/cat-duas.jpg" },
-  { id: "nasheeds", name: "أناشيد", image: "ringtones/images/cat-nasheeds.jpg" },
-  { id: "songs", name: "أشعار", image: "ringtones/images/cat-songs.jpg" },
-  { id: "zawamel", name: "زوامل", image: "ringtones/images/cat-zawamel.jpg" },
-  { id: "name-replies", name: "ردود آلية بالاسم", image: "ringtones/images/cat-name-replies.jpg" },
-  { id: "name-duas", name: "أدعية بالاسم", image: "ringtones/images/cat-name-duas.jpg" },
-  { id: "sports", name: "رياضية", image: "ringtones/images/cat-sports.jpg" },
-  { id: "misc", name: "منوعات", image: "ringtones/images/cat-misc.jpg" }
+  { id: "latest", name: "الأحدث", image: "ringtones/images/cat-latest.webp" },
+  { id: "popular", name: "الأكثر تحميلا", image: "ringtones/images/cat-popular.webp" },
+  { id: "duas", name: "أدعية", image: "ringtones/images/cat-duas.webp" },
+  { id: "nasheeds", name: "أناشيد", image: "ringtones/images/cat-nasheeds.webp" },
+  { id: "songs", name: "أشعار", image: "ringtones/images/cat-songs.webp" },
+  { id: "zawamel", name: "زوامل", image: "ringtones/images/cat-zawamel.webp" },
+  { id: "name-replies", name: "ردود آلية بالاسم", image: "ringtones/images/cat-name-replies.webp" },
+  { id: "name-duas", name: "أدعية بالاسم", image: "ringtones/images/cat-name-duas.webp" },
+  { id: "sports", name: "رياضية", image: "ringtones/images/cat-sports.webp" },
+  { id: "misc", name: "منوعات", image: "ringtones/images/cat-misc.webp" }
 ];
 
 window.CARRIERS = [
-  { key: "yemen", name: "Yemen Mobile", logo: "media/carriers/yemen.png", number: "1100" },
-  { key: "sabafon", name: "Sabafon", logo: "media/carriers/sabafon.png", number: "111" },
-  { key: "you", name: "YOU", logo: "media/carriers/you.png", number: "1017" }
+  { key: "yemen", name: "Yemen Mobile", logo: "media/carriers/yemen.webp", number: "1100" },
+  { key: "sabafon", name: "Sabafon", logo: "media/carriers/sabafon.webp", number: "111" },
+  { key: "you", name: "YOU", logo: "media/carriers/you.webp", number: "1017" }
 ];
 // بيانات التواصل (اختياري)
 window.CONTACT = {
@@ -38,7 +38,7 @@ window.RINGTONES = [
     id: "sabr",
     title: "والصبر ياقلبي - ابراهيم الدوله",
     categories: ["الأكثر تحميلا", "زوامل"],
-    image: "ringtones/images/a1.jpg",
+    image: "ringtones/images/a1.webp",
     audio: "ringtones/audio/sabr.mp3",
     createdAt: "2026-01-04T12:00:00Z",
   rank: {
@@ -55,7 +55,7 @@ window.RINGTONES = [
   id: "dua-motari",
   title: "دعاء يجيبني - احمد المطري",
   categories: ["أدعية"],
-  image: "ringtones/images/a3.jpg",
+  image: "ringtones/images/a3.webp",
   audio: "ringtones/audio/mna.mp3",
   codes: {
     yemen:   { code: "DRA01" },
@@ -67,7 +67,7 @@ window.RINGTONES = [
   id: "nasheed-alf",
   title: "الف صلى - عبدالعظيم عزالدين",
   categories: ["أناشيد"],
-  image: "ringtones/images/a2.jpg",
+  image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/alf.mp3",
   rank: {
     "أناشيد": 4,
@@ -82,7 +82,7 @@ window.RINGTONES = [
   id: "song",
   title: "واقف انا - حسن الاميري",
   categories: ["أناشيد", "الأكثر تحميلا"],
-  image: "ringtones/images/a4.jpg",
+  image: "ringtones/images/a4.webp",
   audio: "ringtones/audio/waqef-ana.mp3",
   createdAt: "2026-01-04T12:00:00Z",
   rank: {
@@ -100,7 +100,7 @@ window.RINGTONES = [
   id: "zamil-ya-ilahi",
   title: "يا إلهي - ابراهيم الدوله",
   categories: ["زوامل"],
-  image: "ringtones/images/a1.jpg",
+  image: "ringtones/images/a1.webp",
   audio: "ringtones/audio/a2.mp3",
   rank: {
     "الأحدث": 2,
@@ -116,11 +116,11 @@ window.RINGTONES = [
   id: "zamil",
   title: "ياصاحبي- ابراهيم الدوله",
   categories: ["زوامل"],
-  image: "ringtones/images/a1.jpg",
+  image: "ringtones/images/a1.webp",
   audio: "ringtones/audio/sa1.mp3",
   createdAt: "2026-01-04T12:00:00Z",
   rank: {
-    "زوامل": 2,
+    "زوامل": 3,
   },
   codes: {
     yemen:   { code: "SON02" },
@@ -133,7 +133,7 @@ window.RINGTONES = [
   id: "nasheed",
   title: "قف بالخضوع-عبدالعظيم عزالدين",
   categories: ["أناشيد", "الأكثر تحميلا"],
-  image: "ringtones/images/a2.jpg",
+  image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/ab1.mp3",
   createdAt: "2026-01-04T12:00:00Z",
   rank: {
@@ -151,7 +151,7 @@ window.RINGTONES = [
   id: "nasheed",
   title: "يامن تحل-عبدالعظيم عزالدين",
   categories: ["أناشيد"],
-  image: "ringtones/images/a2.jpg",
+  image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/ab2.mp3",
 createdAt: "2026-01-04T12:00:00Z",
   rank: {
@@ -168,7 +168,7 @@ createdAt: "2026-01-04T12:00:00Z",
   id: "nasheed",
   title: "إلهي وخلاقي-عبدالعظيم عزالدين",
   categories: ["أناشيد"],
-  image: "ringtones/images/a2.jpg",
+  image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/ab3.mp3",
 createdAt: "2026-01-04T12:00:00Z",
   rank: {
@@ -2205,7 +2205,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "arsenal",
     title: "ارسنال",
     categories: ["رياضية"],
-    image: "ringtones/images/arsenal.jpg",
+    image: "ringtones/images/arsenal.webp",
     audio: "ringtones/audio/arsenal.mp3",
     codes: {
       yemen:{code:""},
@@ -2217,7 +2217,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "bayern",
     title: "الباير",
     categories: ["رياضية"],
-    image: "ringtones/images/bayern.jpg",
+    image: "ringtones/images/bayern.webp",
     audio: "ringtones/audio/bayern.mp3",
     codes: {
       yemen:{code:""},
@@ -2229,7 +2229,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "chelsea",
     title: "تشيلسي",
     categories: ["رياضية"],
-    image: "ringtones/images/chelsea.jpg",
+    image: "ringtones/images/chelsea.webp",
     audio: "ringtones/audio/chelsea.mp3",
     codes: {
       yemen:{code:""},
@@ -2241,7 +2241,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "juventus",
     title: "يوفنتيس",
     categories: ["رياضية"],
-    image: "ringtones/images/juventus.jpg",
+    image: "ringtones/images/juventus.webp",
     audio: "ringtones/audio/juventus.mp3",
     codes: {
       yemen:{code:""},
@@ -2253,7 +2253,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "liverpool",
     title: "ليفربول",
     categories: ["رياضية"],
-    image: "ringtones/images/liverpool.jpg",
+    image: "ringtones/images/liverpool.webp",
     audio: "ringtones/audio/liverpool.mp3",
     rank: {
     "رياضية": 2,
@@ -2268,7 +2268,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "man_city",
     title: "منشستر سيتي",
     categories: ["رياضية"],
-    image: "ringtones/images/man_city.jpg",
+    image: "ringtones/images/man_city.webp",
     audio: "ringtones/audio/man_city.mp3",
     codes: {
       yemen:{code:""},
@@ -2280,7 +2280,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "psg",
     title: "الباريس",
     categories: ["رياضية"],
-    image: "ringtones/images/psg.jpg",
+    image: "ringtones/images/psg.webp",
     audio: "ringtones/audio/psg.mp3",
     rank: {
     "رياضية": 1,
@@ -2295,7 +2295,7 @@ createdAt: "2026-01-04T12:00:00Z",
     id: "barcelona",
     title: "برشلونة",
     categories: ["رياضية"],
-    image: "ringtones/images/barcelona.jpg",
+    image: "ringtones/images/barcelona.webp",
     audio: "ringtones/audio/barcelona.mp3",
 rank: {
     "رياضية": 5,
@@ -2310,7 +2310,7 @@ rank: {
     id: "real_madrid",
     title: "ريال مدريد",
     categories: ["رياضية"],
-    image: "ringtones/images/real_madrid.jpg",
+    image: "ringtones/images/real_madrid.webp",
     audio: "ringtones/audio/real_madrid.mp3",
 rank: {
     "رياضية": 4,
@@ -2321,4 +2321,343 @@ rank: {
       you:{code:""}
     }
   },
+  {
+  id: "slllh",
+  title: "اسأل الله",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a2.webp",
+  audio: "ringtones/audio/slllh.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "lshwq",
+  title: "الشوق",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a2.webp",
+  audio: "ringtones/audio/lshwq.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "lsdyqlwfy",
+  title: "الصديق الوفي",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a7.webp",
+  audio: "ringtones/audio/lsdyqlwfy.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "nlymny",
+  title: "انا اليماني",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/nlymny.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "lfmlyr",
+  title: "الف مليار",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/lfmlyr.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "hlwshl",
+  title: "اهلا وسهلا",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a7.webp",
+  audio: "ringtones/audio/hlwshl.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "lysydy",
+  title: "الا ياسيدي",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a2.webp",
+  audio: "ringtones/audio/lysydy.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "hlwshlshr",
+  title: "اهلا وسهلا",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/hlwshlshr.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "tsbyh",
+  title: "تسبيح",
+  categories: ["أدعية"],
+  image: "ringtones/images/a7.webp",
+  audio: "ringtones/audio/tsbyh.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "hbhllbyt",
+  title: "حب اهل البيت",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a2.webp",
+  audio: "ringtones/audio/hbhllbyt.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "hnyt",
+  title: "حنيت",
+  categories: ["زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/hnyt.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "khlsmhn",
+  title: "خلاص ماحنا",
+  categories: ["زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/khlsmhn.mp3",
+rank: {
+    "زوامل":2,
+  },
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "rblsm",
+  title: "رب السماء",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/rblsm.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "zmnymnfq",
+  title: "زماني منافق",
+  categories: ["زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/zmnymnfq.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "shby",
+  title: "صاحبي",
+  categories: ["زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/shby.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "shbyshby",
+  title: "صاحبي صاحبي",
+  categories: ["زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/shbyshby.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "sdqblmthl",
+  title: "صدق بالمثل",
+  categories: ["زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/sdqblmthl.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "thhmd",
+  title: "طه احمد",
+  categories: ["أناشيد"],
+  image: "ringtones/images/thhmd.webp",
+  audio: "ringtones/audio/thhmd.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "qlbnbdllh",
+  title: "قال ابن عبدالله",
+  categories: ["زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/qlbnbdllh.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "qwmnjm",
+  title: "قوم نجمة ٨٠",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/qwmnjm.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "kntlmtsl",
+  title: "كنت لما اتصل",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a7.webp",
+  audio: "ringtones/audio/kntlmtsl.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "ltnshdlmwjw",
+  title: "لاتنشد الموجوع",
+  categories: ["الأكثر تحميلا","زوامل"],
+  image: "ringtones/images/a6.webp",
+  audio: "ringtones/audio/ltnshdlmwjw.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "ljllqds",
+  title: "لجل القدس",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/ljllqds.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "lykhmsh",
+  title: "لي خمسه",
+  categories: ["أناشيد"],
+  image: "ringtones/images/a2.webp",
+  audio: "ringtones/audio/lykhmsh.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "mmthlsn",
+  title: "ما مثل صنعاء",
+  categories: ["أناشيد"],
+  image: "ringtones/images/mmthlsn.webp",
+  audio: "ringtones/audio/mmthlsn.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "ywldy",
+  title: "يا والدي",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/ywldy.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "yllh",
+  title: "يالله",
+  categories: ["أشعار"],
+  image: "ringtones/images/a5.webp",
+  audio: "ringtones/audio/yllh.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
+{
+  id: "stgfrllh",
+  title: "استغفر الله",
+  categories: ["أناشيد"],
+  image: "ringtones/images/stgfrllh.webp",
+  audio: "ringtones/audio/stgfrllh.mp3",
+  codes: {
+    yemen:   { code: "" },
+    sabafon: { code: "" },
+    you:     { code: "" }
+  }
+},
 ];
