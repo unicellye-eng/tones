@@ -462,11 +462,6 @@ function setPauseIcon(btn) {
           e.stopPropagation();
           openDetails(r.id);
         }, { signal: listAbort.signal });
-
-        row.addEventListener("click", () => {
-          openDetails(r.id);
-        }, { signal: listAbort.signal });
-
         actions.append(play, subscribe);
         row.append(img, name, actions);
         listGrid.appendChild(row);
