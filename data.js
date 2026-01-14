@@ -36,7 +36,7 @@ window.CONTACT = {
 window.RINGTONES = [
 {
     id: "sabr",
-    title: "والصبر ياقلبي - ابراهيم الدوله",
+    title: "والصبر ياقلبي",
     categories: ["الأكثر تحميلا", "زوامل"],
     image: "ringtones/images/a1.webp",
     audio: "ringtones/audio/sabr.mp3",
@@ -53,7 +53,7 @@ window.RINGTONES = [
 },
 {
   id: "dua-motari",
-  title: "دعاء يجيبني - احمد المطري",
+  title: "دعاء يجيبني",
   categories: ["أدعية"],
   image: "ringtones/images/a3.webp",
   audio: "ringtones/audio/mna.mp3",
@@ -65,7 +65,7 @@ window.RINGTONES = [
 },
 {
   id: "nasheed-alf",
-  title: "الف صلى - عبدالعظيم عزالدين",
+  title: "الف صلى ",
   categories: ["أناشيد"],
   image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/alf.mp3",
@@ -80,7 +80,7 @@ window.RINGTONES = [
 },
 {
   id: "song",
-  title: "واقف انا - حسن الاميري",
+  title: "واقف انا",
   categories: ["أناشيد", "الأكثر تحميلا"],
   image: "ringtones/images/a4.webp",
   audio: "ringtones/audio/waqef-ana.mp3",
@@ -98,7 +98,7 @@ window.RINGTONES = [
 
 {
   id: "zamil-ya-ilahi",
-  title: "يا إلهي - ابراهيم الدوله",
+  title: "يا إلهي",
   categories: ["زوامل"],
   image: "ringtones/images/a1.webp",
   audio: "ringtones/audio/a2.mp3",
@@ -114,7 +114,7 @@ window.RINGTONES = [
 
 {
   id: "zamil",
-  title: "ياصاحبي- ابراهيم الدوله",
+  title: "يا صاحبي ",
   categories: ["زوامل"],
   image: "ringtones/images/a1.webp",
   audio: "ringtones/audio/sa1.mp3",
@@ -131,7 +131,7 @@ window.RINGTONES = [
 
 {
   id: "nasheed",
-  title: "قف بالخضوع-عبدالعظيم عزالدين",
+  title: "قف بالخضوع",
   categories: ["أناشيد", "الأكثر تحميلا"],
   image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/ab1.mp3",
@@ -149,7 +149,7 @@ window.RINGTONES = [
 
 {
   id: "nasheed",
-  title: "يامن تحل-عبدالعظيم عزالدين",
+  title: "يامن تحل ",
   categories: ["أناشيد"],
   image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/ab2.mp3",
@@ -166,7 +166,7 @@ createdAt: "2026-01-04T12:00:00Z",
 
 {
   id: "nasheed",
-  title: "إلهي وخلاقي-عبدالعظيم عزالدين",
+  title: "إلهي وخلاقي",
   categories: ["أناشيد"],
   image: "ringtones/images/a2.webp",
   audio: "ringtones/audio/ab3.mp3",
@@ -2508,7 +2508,7 @@ rank: {
   id: "shbyshby",
   title: "صاحبي صاحبي",
   categories: ["زوامل"],
-  image: "ringtones/images/a6.webp",
+  image: "ringtones/images/a7.webp",
   audio: "ringtones/audio/shbyshby.mp3",
   codes: {
     yemen:   { code: "" },
@@ -2616,7 +2616,7 @@ rank: {
   id: "mmthlsn",
   title: "ما مثل صنعاء",
   categories: ["أناشيد"],
-  image: "ringtones/images/mmthlsn.webp",
+  image: "ringtones/images/a8.webp",
   audio: "ringtones/audio/mmthlsn.mp3",
   codes: {
     yemen:   { code: "" },
@@ -2652,7 +2652,7 @@ rank: {
   id: "stgfrllh",
   title: "استغفر الله",
   categories: ["أناشيد"],
-  image: "ringtones/images/stgfrllh.webp",
+  image: "ringtones/images/a8.webp",
   audio: "ringtones/audio/stgfrllh.mp3",
   codes: {
     yemen:   { code: "" },
