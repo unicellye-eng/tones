@@ -609,3 +609,236 @@ img{max-width:100%;display:block}
 @keyframes spin{
   to{ transform: rotate(360deg); }
 }
+
+
+/* ==============================
+   Contact layout (safe overrides)
+   - Phone + WhatsApp side-by-side
+   - Email full-width underneath
+   - Social icons fill full width (no horizontal scroll)
+   These rules are appended to avoid breaking existing UI.
+   ============================== */
+
+/* Two columns on all widths (so phone + WhatsApp align in one row) */
+#contactLinks.contact-cards{
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Keep two columns even on larger screens (override the 3-column media rule) */
+@media (min-width: 680px){
+  #contactLinks.contact-cards{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The 3rd card is "ايميل" per renderContact() order in app.js */
+#contactLinks.contact-cards > .contact-card:nth-child(3){
+  grid-column: 1 / -1;
+}
+
+/* Social icons: distribute across full width and prevent horizontal scrolling */
+#socialLinks.social-row{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 10px;
+  justify-content: stretch;
+  overflow-x: hidden;
+  padding-bottom: 0;
+}
+
+/* Center each circular icon in its grid cell */
+#socialLinks.social-row a{
+  width: 44px;
+  height: 44px;
+  justify-self: center;
+}
+
+
+/* === Header color moved from inline <style> (security improvement) === */
+/* Ultra Dark Unicell Header */
+.app-header, header, .topbar {
+  background: #041A3A !important;
+}
+.app-header *, header *, .topbar * {
+  color: #ffffff !important;
+}
+/* === Contact layout: Call + WhatsApp side-by-side, Email full-width (robust) === */
+#contactLinks.contact-cards{
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Prevent returning to 3 columns on wider screens */
+@media (min-width: 680px){
+  #contactLinks.contact-cards{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Email card full width (doesn't depend on position) */
+#contactLinks.contact-cards > .contact-card.is-email{
+  grid-column: 1 / -1;
+}
+
+/* === Social icons: fill full width, no horizontal scroll === */
+#socialLinks.social-row{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
+  gap: 10px;
+  justify-content: stretch;
+  overflow-x: hidden;
+}
+
+#socialLinks.social-row a{
+  width: 44px;
+  height: 44px;
+  justify-self: center;
+}
+
+/* === Option A: Clean Grid Cards (single primary action) === */
+
+/* Card layout */
+#listGrid.list{
+  gap: 14px;
+}
+#listGrid .tone{
+  padding: 12px;
+  gap: 10px;
+}
+
+/* Image: consistent square with rounded corners */
+#listGrid .tone .thumb{
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+}
+
+/* Title: one line, clean */
+#listGrid .tone .tone-name{
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 2px;
+}
+
+/* Actions: play (icon) + details (full) */
+#listGrid .tone-actions{
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+/* Play button as primary icon */
+#listGrid .tone-actions .btn.play{
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border-radius: 16px;
+}
+
+/* Details as secondary (less visually heavy than primary) */
+#listGrid .tone-actions .btn.subscribe{
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 16px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* Keep active feedback */
+#listGrid .tone-actions .btn.subscribe:active,
+#listGrid .tone-actions .btn.play:active{
+  transform: scale(0.98);
+}
+
+/* === Option A polish: consistent card height + calmer hover + better spacing === */
+#listGrid .tone{
+  border-radius: 20px;
+}
+
+#listGrid .tone .tone-name{
+  margin-top: 2px;
+}
+
+/* Keep cards visually consistent */
+#listGrid .tone .thumb{
+  box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+}
+
+/* Calmer hover on desktop */
+@media (hover: hover){
+  #listGrid .tone:hover{
+    transform: translateY(-1px);
+    box-shadow: 0 12px 26px rgba(0,0,0,0.20);
+  }
+}
+
+/* Prevent buttons from wrapping in very narrow screens */
+#listGrid .tone-actions{
+  min-width: 0;
+}
+
+/* === Lighter Tone Card Background === */
+#listGrid .tone{
+  background: hsl(var(--card) / 0.92);
+  border: 1px solid hsl(var(--border));
+}
+
+.dark #listGrid .tone{
+  background: hsl(var(--card) / 1);
+}
+
+/* === Darker navy + higher contrast + tighter spacing === */
+
+/* Darken header/navy */
+.app-header, header, .topbar{
+  background: #021027 !important;
+}
+
+/* Increase contrast for cards (slightly stronger border/shadow) */
+#listGrid .tone{
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 10px 22px rgba(0,0,0,0.18);
+}
+#listGrid .tone .tone-name{
+  color: hsl(var(--foreground));
+}
+
+/* Reduce the space between name and the action buttons */
+#listGrid .tone{
+  gap: 8px;
+}
+#listGrid .tone .tone-name{
+  margin: 0;
+  padding: 0 2px;
+}
+#listGrid .tone-actions{
+  margin-top: 0;
+}
+
+/* === Focus/press ring on tone cards (restore subtle blue frame) === */
+#listGrid .tone:focus-within{
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+#listGrid .tone:active{
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* === Internal title positioning === */
+.center-title{
+  text-align: center;
+  width: 100%;
+}
+.offset-right-title{
+  transform: translateX(10px); /* slight move to the right */
+}

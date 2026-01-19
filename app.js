@@ -2,6 +2,53 @@
 
 // === Icon helpers (avoid colored emoji on Android) ===
 const LAST_PLAYED_KEY = "alooh:lastPlayedId";
+
+
+// List scroll restore (when returning from details)
+  const LIST_SCROLL_KEY = "unicell_list_scroll_v1";
+  const LIST_LAST_ID_KEY = "unicell_list_last_id_v1";
+
+  function saveListScroll(ringtoneId) {
+    try {
+      const pad = document.querySelector("#viewList .pad");
+      const listGrid = document.getElementById("listGrid");
+      const payload = {
+        winY: window.scrollY || 0,
+        padY: pad ? pad.scrollTop : 0,
+        gridY: listGrid ? listGrid.scrollTop : 0,
+        catId: selectedCategory || null
+      };
+      sessionStorage.setItem(LIST_SCROLL_KEY, JSON.stringify(payload));
+      if (ringtoneId != null) sessionStorage.setItem(LIST_LAST_ID_KEY, String(ringtoneId));
+    } catch (e) {}
+  }
+
+  function restoreListScroll() {
+    try {
+      // Prefer centering on the last opened ringtone card (more stable than raw scroll values)
+      const lastId = sessionStorage.getItem(LIST_LAST_ID_KEY);
+      if (lastId) {
+        const btn = document.querySelector(`[data-play="${CSS.escape(lastId)}"]`);
+        const card = btn ? btn.closest(".tone") : null;
+        if (card && card.scrollIntoView) {
+          card.scrollIntoView({ block: "center", behavior: "auto" });
+          return;
+        }
+      }
+
+      // Fallback: use stored scroll positions if the card is not found
+      const raw = sessionStorage.getItem(LIST_SCROLL_KEY);
+      if (!raw) return;
+      const payload = JSON.parse(raw) || {};
+      const pad = document.querySelector("#viewList .pad");
+      const listGrid = document.getElementById("listGrid");
+
+      if (pad && typeof payload.padY === "number") pad.scrollTop = payload.padY;
+      if (listGrid && typeof payload.gridY === "number") listGrid.scrollTop = payload.gridY;
+      const y = (typeof payload.winY === "number") ? payload.winY : 0;
+      try { window.scrollTo({ top: y, left: 0, behavior: "auto" }); } catch (_) { window.scrollTo(0, y); }
+    } catch (e) {}
+  }
 const CLICK_GUARD_MS = 250;
 
 function setPlayIcon(btn) {
@@ -47,7 +94,40 @@ function setPauseIcon(btn) {
   let isStoppingPreview = false;
 
 
-  // Smooth audio fade to reduce "click/pop" when switching tones (especially on Android)
+  
+
+  // Prevent overlapping play requests when user taps quickly
+  let playToken = 0;
+
+  async function safeStop(token) {
+    if (!previewAudio || (!previewAudio.src && previewAudio.currentSrc === "")) {
+      currentPlayingId = null;
+      return;
+    }
+
+    // Fade-out quickly to avoid "pop/click"
+    try { fadeTo(previewAudio, 0, 90); } catch(e) {}
+
+    // Give the browser a moment to apply volume ramp
+    await new Promise(r => setTimeout(r, 100));
+
+    if (token !== playToken) return;
+
+    try { previewAudio.pause(); } catch(e) {}
+    try { previewAudio.currentTime = 0; } catch(e) {}
+
+    // Fully detach src to stop any buffered audio from bleeding
+    try { previewAudio.removeAttribute("src"); } catch(e) {}
+    try { previewAudio.load(); } catch(e) {}
+
+    currentPlayingId = null;
+
+    // Reset all play buttons to "play" icon
+    document.querySelectorAll("[data-play]").forEach(b => {
+      try { setPlayIcon(b); } catch(e) {}
+    });
+  }
+// Smooth audio fade to reduce "click/pop" when switching tones (especially on Android)
   function fadeTo(audioEl, targetVolume, durationMs) {
     try {
       const start = (audioEl && typeof audioEl.volume === "number") ? audioEl.volume : 1;
@@ -256,7 +336,7 @@ function setPauseIcon(btn) {
   }
 
   function setHeader(title, showBack) {
-    headerTitle.textContent = title || "سمّع متصليك – أجمل الرنات";
+    headerTitle.textContent = title || "خصّص رنينك بضغطة زر";
     backBtn.classList.toggle("hidden", !showBack);
     headerLogo.classList.toggle("hidden", !!showBack); // مثل القالب الأصلي: يظهر الشعار فقط في الرئيسية
   }
@@ -270,62 +350,73 @@ function setPauseIcon(btn) {
   function stopPreview() {
     if (isStoppingPreview) return;
     isStoppingPreview = true;
-    try {
-      // Fade out quickly before stopping to avoid click/pop
-      try { previewAudio.volume = 0; } catch(e) {}
-      previewAudio.pause();
-      previewAudio.currentTime = 0;
-      previewAudio.removeAttribute("src");
-      previewAudio._retry = 0;
-      try { previewAudio.load(); } catch(e) {}
-      // Restore base volume for next play (we fade-in after play)
-      try { previewAudio.volume = 1; } catch(e) {}
-    } catch (e) {}
-    currentPlayingId = null;
-    try { localStorage.removeItem(LAST_PLAYED_KEY); } catch (e) {}
-    document.querySelectorAll("[data-play]").forEach(btn => {
-      try { btn.dataset.busy = "0"; } catch(e) {}
-      setPlayIcon(btn);
-    });
-    isStoppingPreview = false;
+    const token = ++playToken;
+    safeStop(token).finally(() => { isStoppingPreview = false; });
   }
 
   function playToggle(id, audioUrl, btn) {
+    const token = ++playToken;
+
     // Guard against double taps / rapid clicks on mobile
     if (btn?.dataset?.busy === "1") return;
     if (btn) {
       btn.dataset.busy = "1";
       setTimeout(() => { try { btn.dataset.busy = "0"; } catch(e) {} }, CLICK_GUARD_MS);
     }
+
+    // If user taps the same tone -> stop
     if (currentPlayingId === id) {
-      stopPreview();
+      safeStop(token);
       return;
     }
-    stopPreview();
-    // Start muted then fade-in to avoid click/pop on start/switch
-    try { previewAudio.volume = 0; } catch(e) {}
-    previewAudio.src = audioUrl;
-    previewAudio.play().then(() => {
-      fadeTo(previewAudio, 1, 180);
-      currentPlayingId = id;
-      try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
-      setPauseIcon(btn);
-    }).catch(() => {
-      // Safe one-time retry for flaky mobile networks (no UI change)
-      if (previewAudio._retry === 0) {
-        previewAudio._retry = 1;
-        try { previewAudio.currentTime = 0; previewAudio.play().then(() => {
-          fadeTo(previewAudio, 1, 180);
-          currentPlayingId = id;
-          try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
-          setPauseIcon(btn);
-        }).catch(() => {
-          try { if (btn) { setPlayIcon(btn); btn.dataset.busy = "0"; } } catch(e) {}
-          toastMsg("تعذر تشغيل الصوت");
-        }); return; } catch(e) {}
+
+    // Stop any previous tone smoothly
+    safeStop(token).then(() => {
+      if (token !== playToken) return;
+
+      // Start muted then fade-in to avoid click/pop on start/switch
+      try { previewAudio.volume = 0; } catch(e) {}
+      try { previewAudio.currentTime = 0; } catch(e) {}
+
+      previewAudio.src = audioUrl;
+
+      const onStarted = () => {
+        if (token !== playToken) return;
+        fadeTo(previewAudio, 1, 160);
+        currentPlayingId = id;
+        try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
+        if (btn) setPauseIcon(btn);
+      };
+
+      const onFailed = () => {
+        try { if (btn) { setPlayIcon(btn); btn.dataset.busy = "0"; } } catch(e) {}
+        toastMsg("تعذر تشغيل الصوت");
+      };
+
+      const p = previewAudio.play();
+      if (p && typeof p.then === "function") {
+        p.then(onStarted).catch(() => {
+          // Retry once (mobile autoplay / decode quirks)
+          try {
+            if (!previewAudio._retry) previewAudio._retry = 0;
+            if (previewAudio._retry < 1) {
+              previewAudio._retry += 1;
+              try { previewAudio.currentTime = 0; } catch(e) {}
+              const p2 = previewAudio.play();
+              if (p2 && typeof p2.then === "function") {
+                p2.then(onStarted).catch(onFailed);
+              } else {
+                onStarted();
+              }
+              return;
+            }
+          } catch(e) {}
+          onFailed();
+        });
+      } else {
+        // Older browsers
+        onStarted();
       }
-      try { if (btn) { setPlayIcon(btn); btn.dataset.busy = "0"; } } catch(e) {}
-      toastMsg("تعذر تشغيل الصوت");
     });
   }
   previewAudio.addEventListener("ended", stopPreview);
@@ -392,7 +483,7 @@ function setPauseIcon(btn) {
     });
   }
 
-  function renderList(catId, query) {
+  function renderList(catId, query, opts = {}) {
     // Cleanup old listeners from previous render
     try { listAbort.abort(); } catch(e) {}
     listAbort = new AbortController();
@@ -403,7 +494,7 @@ function setPauseIcon(btn) {
       return (r._titleLC || String(r.title || "").toLowerCase()).includes(q);
     });
 
-    const PAGE_SIZE = q ? allItems.length : 20;
+    const PAGE_SIZE = q ? allItems.length : (opts.pageSize || 20);
     let page = 0;
 
     let loadingMore = false;
@@ -457,7 +548,7 @@ function setPauseIcon(btn) {
 
         const subscribe = document.createElement("button");
         subscribe.className = "btn primary subscribe";
-        subscribe.textContent = "اشتراك";
+        subscribe.textContent = "تفاصيل";
         subscribe.addEventListener("click", (e) => {
           e.stopPropagation();
           openDetails(r.id);
@@ -574,9 +665,25 @@ function setPauseIcon(btn) {
     if (searchBtn) searchBtn.classList.remove("hidden");
 
     showView("list");
-    renderList(catId, currentQuery);
-    // Always start list from the top when entering a category
-    requestAnimationFrame(scrollListToTop);
+    // When returning from details, render enough items so the same card exists in DOM
+    let __restoreSize = 0;
+    if (opts.restoreScroll) {
+      try {
+        const lastId = sessionStorage.getItem(LIST_LAST_ID_KEY);
+        if (lastId) {
+          const items = ringtonesForCategory(catId);
+          const idx = items.findIndex(r => String(r.id) === String(lastId));
+          if (idx >= 0) __restoreSize = Math.max(20, idx + 1);
+        }
+      } catch (e) {}
+    }
+    renderList(catId, currentQuery, __restoreSize ? { pageSize: __restoreSize } : undefined);
+// Start list from top unless we are returning from details
+    if (opts.restoreScroll) {
+      requestAnimationFrame(() => restoreListScroll());
+    } else {
+      requestAnimationFrame(scrollListToTop);
+    }
 
     if (__push) {
       const __state = { view: "list", catId };
@@ -618,6 +725,8 @@ function setPauseIcon(btn) {
     const r = normalizeRingtone(raw);
 
     setHeader(r.title, true);
+    // Remember where we were in the list
+    saveListScroll(ringtoneId);
     showView("details");
 
     detailsImage.src = getDisplayImage(r, { generate: true });
@@ -674,8 +783,13 @@ function setPauseIcon(btn) {
   function goBack() {
     if (currentView === "details") {
       // back to list
-      if (selectedCategory) openList(selectedCategory);
-      else openHome();
+      if (selectedCategory) {
+        openList(selectedCategory, { push: false, restoreScroll: true });
+        // Keep URL/state consistent (avoid staying on #details-...)
+        try { history.replaceState({ view: "list", catId: selectedCategory }, "", `#list-${encodeURIComponent(selectedCategory)}`); } catch (e) {}
+      } else {
+        openHome({ push: false });
+      }
       return;
     }
     if (currentView === "list") {
@@ -690,7 +804,7 @@ function setPauseIcon(btn) {
     stopPreview();
     selectedCategory = null;
     selectedRingtoneId = null;
-    setHeader("سمّع متصليك – أجمل الرنات", false);
+    setHeader("خصّص رنينك بضغطة زر", false);
     if (searchBtn) searchBtn.classList.add("hidden");
     if (searchBar) searchBar.classList.add("hidden");
     showView("cats");
@@ -755,7 +869,7 @@ function setPauseIcon(btn) {
 
     if ((st && st.view === "list") || h.startsWith("#list-")) {
       const catId = (st && st.catId) || getFromHash("#list-");
-      if (catId) openList(catId, { push: false });
+      if (catId) openList(catId, { push: false, restoreScroll: true });
       else openHome({ push: false });
       return;
     }
@@ -792,10 +906,10 @@ function setPauseIcon(btn) {
       email: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5L4 8V6l8 5 8-5v2z"/></svg>`
     };
 
-    const makeCard = (label, value, href, iconSvg, color) => {
+    const makeCard = (label, value, href, iconSvg, color, extraClass) => {
       if (!value) return;
       const a = document.createElement("a");
-      a.className = "contact-card";
+      a.className = "contact-card" + (extraClass ? (" " + extraClass) : "");
       a.href = href || "#";
       a.target = "_blank";
       a.rel = "noopener";
@@ -823,7 +937,7 @@ function setPauseIcon(btn) {
 
     makeCard("اتصال", phone, phone ? `tel:${phone}` : "", ICON.phone, "#7dd3fc");
     makeCard("واتساب", whatsapp, whatsapp ? `https://wa.me/${String(whatsapp).replace(/\D/g, "")}` : "", ICON.whatsapp, "#25D366");
-    makeCard("ايميل", email, email ? `mailto:${email}` : "", ICON.email, "#a78bfa");
+    makeCard("ايميل", email, email ? `mailto:${email}` : "", ICON.email, "#a78bfa", "is-email");
 
     // Social icons (circular, one row)
     const s = (c.social || {});
@@ -928,5 +1042,32 @@ function setPauseIcon(btn) {
   // init
   renderCategories();
   renderContact();
-  openHome();
+
+  // On initial load (including pull-to-refresh), restore the view from URL hash/state
+  // instead of forcing Home every time.
+  (function restoreInitialRoute(){
+    const st = (history && history.state) ? history.state : {};
+    const h = location.hash || "";
+
+    const getFromHash = (prefix) => {
+      if (!h.startsWith(prefix)) return null;
+      try { return decodeURIComponent(h.slice(prefix.length)); } catch { return h.slice(prefix.length); }
+    };
+
+    if ((st && st.view === "details") || h.startsWith("#details-")) {
+      const id = (st && st.ringtoneId) || getFromHash("#details-");
+      if (id) openDetails(id, { push: false });
+      else openHome({ push: false });
+      return;
+    }
+
+    if ((st && st.view === "list") || h.startsWith("#list-")) {
+      const catId = (st && st.catId) || getFromHash("#list-");
+      if (catId) openList(catId, { push: false, restoreScroll: true });
+      else openHome({ push: false });
+      return;
+    }
+
+    openHome({ push: false });
+  })();
 })();
