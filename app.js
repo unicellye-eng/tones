@@ -154,56 +154,15 @@ function setPauseIcon(btn) {
   // Cleanup controller for list button listeners (prevents leaks on re-render)
   let listAbort = new AbortController();
 
-  // Auto-generated images for "بالاسم" content
-  const generatedImageCache = new Map();
-
-  // Lazily generate "بالاسم" thumbnails only when they become visible.
-  let byNameThumbObserver = null;
-  function ensureByNameThumbObserver() {
-    if (byNameThumbObserver) return byNameThumbObserver;
-    if (!("IntersectionObserver" in window)) return null;
-
-    byNameThumbObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        const img = entry.target;
-        byNameThumbObserver.unobserve(img);
-
-        const rid = img?.dataset?.rid;
-        const title = img?.dataset?.title || "";
-        if (!rid) return;
-
-        if (generatedImageCache.has(rid)) {
-          if (img.isConnected) img.src = generatedImageCache.get(rid);
-          return;
-        }
-
-        const doWork = () => {
-          try {
-            const url = makeNameImageDataUrl(extractNameOnly(title));
-            generatedImageCache.set(rid, url);
-            if (img.isConnected) img.src = url;
-          } catch (e) {}
-        };
-
-        if ("requestIdleCallback" in window) {
-          requestIdleCallback(doWork, { timeout: 1200 });
-        } else {
-          setTimeout(doWork, 0);
-        }
-      });
-    }, { root: null, threshold: 0.1 });
-
-    return byNameThumbObserver;
-  }
-
+    // Lightweight rendering for "بالاسم" content:
+  // Instead of generating canvas images (heavy on low-end devices), we show a static fallback image,
+  // and (in the list) we render the name as bold text in the thumbnail area.
   function isByNameRingtone(r) {
     return ((r?.categories || []).some(n => String(n || "").includes("بالاسم")));
   }
 
   function extractNameOnly(title) {
     const t = String(title || "").trim();
-    // Remove common prefixes like: دعاء / رد / رد آلي
     const cleaned = t
       .replace(/^\s*(دعاء)\s+/u, "")
       .replace(/^\s*(رد\s*آلي|رد)\s+/u, "")
@@ -211,78 +170,19 @@ function setPauseIcon(btn) {
     return cleaned || t;
   }
 
-  function makeNameImageDataUrl(text) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 600;
-    canvas.height = 600;
-    const ctx = canvas.getContext("2d");
-
-    // Subtle dark background (keeps site palette)
-    const g = ctx.createLinearGradient(0, 0, 600, 600);
-    g.addColorStop(0, "#0b1620");
-    g.addColorStop(1, "#111c27");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 600, 600);
-
-    // Very subtle music note pattern
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = "#ffffff";
-    const notes = ["♪", "♫", "♩", "♬"];
-    ctx.font = "48px sans-serif";
-    for (let y = 80; y < 600; y += 140) {
-      for (let x = 60; x < 600; x += 140) {
-        ctx.fillText(notes[(x + y) % notes.length], x, y);
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    // Main name text
-    const name = String(text || "").trim();
-    ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    // Fit text to canvas
-    let fontSize = 92;
-    const maxWidth = 520;
-    while (fontSize > 44) {
-      ctx.font = `800 ${fontSize}px system-ui, -apple-system, Segoe UI, Arial`;
-      if (ctx.measureText(name).width <= maxWidth) break;
-      fontSize -= 4;
-    }
-
-    // Soft shadow for readability
-    ctx.shadowColor = "rgba(0,0,0,0.55)";
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = 6;
-    ctx.fillText(name, 300, 300);
-    ctx.shadowBlur = 0;
-
-    return canvas.toDataURL("image/png");
-  }
-
-  function getDisplayImage(r, opts = {}) {
+  function getDisplayImage(r) {
     if (!r) return "";
     const byName = isByNameRingtone(r);
     if (!byName) return r.image || "";
-
-    // By-name images can be expensive to generate (canvas -> dataURL).
-    // Default behavior: return a lightweight fallback, and generate lazily for visible items.
-    const fallback =
+    return (
       r.image ||
-      ((r?.categories || []).some(n => String(n || "").includes("أدعية")) ? "ringtones/images/cat-name-duas.jpg" : "ringtones/images/cat-name-replies.jpg");
-
-    const generate = !!opts.generate;
-    if (!generate) return fallback;
-
-    if (generatedImageCache.has(r.id)) return generatedImageCache.get(r.id);
-    const nameOnly = extractNameOnly(r.title);
-    const url = makeNameImageDataUrl(nameOnly);
-    generatedImageCache.set(r.id, url);
-    return url;
+      ((r?.categories || []).some(n => String(n || "").includes("أدعية"))
+        ? "ringtones/images/cat-name-duas.jpg"
+        : "ringtones/images/cat-name-replies.jpg")
+    );
   }
 
-  function normalizeRingtone(r) {
+function normalizeRingtone(r) {
     // Defensive normalization (prevents crashes from unexpected/missing fields)
     const obj = (r && typeof r === "object") ? r : {};
     const id = obj.id ?? obj._id ?? obj.uuid ?? String(Math.random());
@@ -445,7 +345,14 @@ function setPauseIcon(btn) {
 
       const all = getAllNormalizedRingtones();
 
-    const hasCat = (r, name) => (r.categories || []).includes(name);
+        const hasCat = (r, cat) => {
+      const cats = (r && r.categories) ? r.categories : [];
+      if (!cat) return false;
+      if (typeof cat === "string") return cats.includes(cat);
+      const id = cat.id;
+      const name = cat.name;
+      return (name && cats.includes(name)) || (id && cats.includes(id));
+    };
 
     const sortByRankOrDate = (items, name) => {
       return items.slice().sort((a, b) => {
@@ -466,19 +373,20 @@ function setPauseIcon(btn) {
       if (catId === "latest") {
       // "الأحدث" يعرض كل النغمات من كل الأقسام
       // مع استثناء أي نغمة تنتمي لأي قسم يحتوي اسمه على كلمة "بالاسم"
-      const filtered = all.filter(r => !((r.categories || []).some(n => String(n || "").includes("بالاسم"))));
+            const filtered = all.filter(r => !isByNameRingtone(r));
         return filtered.slice().sort((a, b) => (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0));
       }
 
       if (catId === "popular") {
       // "الأكثر تحميلًا" بحسب ترتيب rank إن وجد
-      const popularName = ((window.CATEGORIES || []).find(c => c.id === "popular") || {}).name || "الأكثر تحميلًا";
-      const filtered = all.filter(r => hasCat(r, popularName));
-        return sortByRankOrDate(filtered, popularName);
+            const popularObj = (window.CATEGORIES || []).find(c => c.id === "popular") || { id: "popular", name: "الأكثر تحميلًا" };
+      const rankKey = popularObj.name || "الأكثر تحميلًا";
+      const filtered = all.filter(r => hasCat(r, popularObj) || hasCat(r, "popular"));
+      return sortByRankOrDate(filtered, rankKey);
       }
 
     // باقي الأقسام
-      const filtered = catName ? all.filter(r => hasCat(r, catName)) : all;
+            const filtered = catObj ? all.filter(r => hasCat(r, catObj) || (catName && hasCat(r, catName)) || hasCat(r, catId)) : all;
       return catName ? sortByRankOrDate(filtered, catName) : filtered;
     });
   }
@@ -500,8 +408,6 @@ function setPauseIcon(btn) {
     let loadingMore = false;
     listGrid.innerHTML = "";
 
-    const observer = ensureByNameThumbObserver();
-
     function renderPage() {
       const start = page * PAGE_SIZE;
       const end = Math.min(allItems.length, start + PAGE_SIZE);
@@ -511,24 +417,41 @@ function setPauseIcon(btn) {
         const row = document.createElement("div");
         row.className = "tone";
 
-        const img = document.createElement("img");
-        img.className = "thumb";
-
         const isByName = isByNameRingtone(r);
+
+        let thumbEl;
         if (isByName) {
-          // Lightweight fallback first, then generate on visibility
-          img.src = getDisplayImage(r, { generate: false });
-          img.dataset.rid = r.id;
-          img.dataset.title = r.title || "";
-          img.loading = "lazy";
-          if (observer) observer.observe(img);
+          // Show the name directly (fast, no canvas generation)
+          const ph = document.createElement("div");
+          ph.className = "thumb thumb-name";
+          ph.textContent = extractNameOnly(r.title || "");
+          ph.setAttribute("aria-label", r.title || "");
+
+          // Minimal inline styling so it looks good even without extra CSS
+          ph.style.display = "flex";
+          ph.style.alignItems = "center";
+          ph.style.justifyContent = "center";
+          ph.style.textAlign = "center";
+          ph.style.fontWeight = "800";
+          ph.style.lineHeight = "1.2";
+          ph.style.padding = "10px";
+          ph.style.background = "#111c27";
+          ph.style.color = "#fff";
+          ph.style.userSelect = "none";
+          thumbEl = ph;
         } else {
+          const img = document.createElement("img");
+          img.className = "thumb";
           img.src = getDisplayImage(r);
           img.loading = "lazy";
+          img.alt = r.title || "";
+          img.onerror = () => {
+            img.onerror = null;
+            img.src =
+              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII=";
+          };
+          thumbEl = img;
         }
-
-        img.alt = r.title || "";
-        img.onerror = () => { img.onerror = null; img.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII="; };
 
         const name = document.createElement("div");
         name.className = "tone-name";
@@ -538,10 +461,14 @@ function setPauseIcon(btn) {
         play.className = "btn play";
         play.dataset.play = r.id;
         setPlayIcon(play);
-        play.addEventListener("click", (e) => {
-          e.stopPropagation();
-          playToggle(r.id, r.audio, play);
-        }, { signal: listAbort.signal });
+        play.addEventListener(
+          "click",
+          (e) => {
+            e.stopPropagation();
+            playToggle(r.id, r.audio, play);
+          },
+          { signal: listAbort.signal }
+        );
 
         const actions = document.createElement("div");
         actions.className = "tone-actions";
@@ -549,12 +476,16 @@ function setPauseIcon(btn) {
         const subscribe = document.createElement("button");
         subscribe.className = "btn primary subscribe";
         subscribe.textContent = "تفاصيل";
-        subscribe.addEventListener("click", (e) => {
-          e.stopPropagation();
-          openDetails(r.id);
-        }, { signal: listAbort.signal });
+        subscribe.addEventListener(
+          "click",
+          (e) => {
+            e.stopPropagation();
+            openDetails(r.id);
+          },
+          { signal: listAbort.signal }
+        );
         actions.append(play, subscribe);
-        row.append(img, name, actions);
+        row.append(thumbEl, name, actions);
         listGrid.appendChild(row);
       });
 
@@ -696,7 +627,11 @@ function setPauseIcon(btn) {
 
   function makeSmsLink(number, body) {
     const encoded = encodeURIComponent(body || "");
-    return `sms:${number}?&body=${encoded}`;
+    // iOS prefers using "&body=" while many Android browsers accept "?body="
+    const ua = navigator.userAgent || "";
+    const isIOS = /iPad|iPhone|iPod/i.test(ua) && !window.MSStream;
+    const sep = isIOS ? "&" : "?";
+    return `sms:${number}${sep}body=${encoded}`;
   }
 
   async function copyToClipboard(text) {
@@ -729,9 +664,31 @@ function setPauseIcon(btn) {
     saveListScroll(ringtoneId);
     showView("details");
 
-    detailsImage.src = getDisplayImage(r, { generate: true });
-    detailsImage.alt = r.title;
-    detailsImage.onerror = () => { detailsImage.onerror = null; detailsImage.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII="; };
+    // === Details image handling ===
+    // For "بالاسم" items: don't generate any canvas image at all.
+    // Show the name in a bold block (CSS handles layout), and hide the <img> to keep the view fast.
+    const detailsCard = detailsImage ? detailsImage.closest(".details-card") : null;
+    const byName = isByNameRingtone(r);
+    if (detailsCard) detailsCard.classList.toggle("name-only", byName);
+
+    if (byName) {
+      if (detailsImage) {
+        detailsImage.classList.add("hidden");
+        detailsImage.removeAttribute("src");
+        detailsImage.alt = "";
+      }
+    } else {
+      if (detailsImage) {
+        detailsImage.classList.remove("hidden");
+        detailsImage.src = getDisplayImage(r, { generate: false });
+        detailsImage.alt = r.title;
+        detailsImage.onerror = () => {
+          detailsImage.onerror = null;
+          detailsImage.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII=";
+        };
+      }
+    }
+
     detailsName.textContent = r.title;
 
     subsGrid.innerHTML = "";

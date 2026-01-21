@@ -331,6 +331,18 @@ img{max-width:100%;display:block}
   background: rgba(255,255,255,.06);
 }
 .details-name{text-align:center; font-weight: 900; margin: 6px 0 14px;}
+
+/* === By-name details: no generated image, show the name as the hero element === */
+.details-card.name-only .details-img{display:none !important;}
+.details-card.name-only .details-name{
+  font-size: 28px;
+  line-height: 1.25;
+  padding: 22px 14px;
+  margin: 0 auto 14px;
+  border-radius: 22px;
+  border: 1px solid hsl(var(--border));
+  background: rgba(255,255,255,.04);
+}
 .section-title{font-weight: 900; margin: 10px 0 8px;}
 .subs{display:flex; flex-direction:column; gap: 10px;}
 .sub-card{
