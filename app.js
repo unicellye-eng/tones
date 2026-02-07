@@ -1,5 +1,8 @@
 (() => {
 
+// Hide splash once JS is running
+try { document.documentElement.classList.add('pwa-ready'); } catch(e) {}
+
 // === Icon helpers (avoid colored emoji on Android) ===
 const LAST_PLAYED_KEY = "alooh:lastPlayedId";
 
@@ -78,6 +81,8 @@ function setPauseIcon(btn) {
   const searchInput = $("searchInput");
   const searchClear = $("searchClear");
 
+  const listPageSub = document.querySelector("#viewList .page-sub");
+
   const detailsImage = $("detailsImage");
   const detailsName = $("detailsName");
   const subsGrid = $("subsGrid");
@@ -87,11 +92,58 @@ function setPauseIcon(btn) {
   // Audio preview (LIST ONLY)
   const previewAudio = new Audio();
   // Compatibility defaults (safe; no UI impact)
-  previewAudio.preload = "none";
+  previewAudio.preload = "metadata"; // أسرع في أول تشغيل مع بقاء التحميل خفيف
   try { previewAudio.setAttribute("playsinline", ""); } catch(e) {}
   try { previewAudio.setAttribute("webkit-playsinline", ""); } catch(e) {}
   let currentPlayingId = null;
   let isStoppingPreview = false;
+
+
+  // === Speed: warm up a few audio files for instant play on slow devices ===
+  const _warmedAudio = new Set();
+  function _connectionInfo() {
+    const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    return c || null;
+  }
+  function shouldWarmup() {
+    try {
+      const c = _connectionInfo();
+      // Respect data saver / very slow connections
+      if (c && (c.saveData || /(^|\s)(slow-2g|2g)($|\s)/i.test(String(c.effectiveType || "")))) return false;
+      return true;
+    } catch(e) { return true; }
+  }
+  function warmupAudioUrls(urls) {
+    if (!shouldWarmup()) return;
+    (urls || []).slice(0, 3).forEach((u) => {
+      try {
+        if (!u || _warmedAudio.has(u)) return;
+        _warmedAudio.add(u);
+
+        // Try a small ranged fetch (fast) to prime cache/connection; fallback to Audio preload.
+        fetch(u, { headers: { Range: "bytes=0-65535" }, cache: "force-cache" })
+          .catch(() => {
+            try {
+              const a = new Audio();
+              a.preload = "metadata";
+              a.src = u;
+            } catch(e) {}
+          });
+      } catch(e) {}
+    });
+  }
+
+  // After first user interaction, we allow more aggressive preloading for faster response.
+  let _hadUserGesture = false;
+  function markUserGesture() {
+    if (_hadUserGesture) return;
+    _hadUserGesture = true;
+    try { previewAudio.preload = "auto"; } catch(e) {}
+  }
+  ["pointerdown","touchstart","keydown","mousedown"].forEach(ev => {
+    window.addEventListener(ev, markUserGesture, { once: true, passive: true });
+  });
+
 
 
   
@@ -235,11 +287,25 @@ function normalizeRingtone(r) {
     currentView = name === "cats" ? "categories" : (name === "list" ? "list" : "details");
   }
 
-  function setHeader(title, showBack) {
-    headerTitle.textContent = title || "خصّص رنينك بضغطة زر";
-    backBtn.classList.toggle("hidden", !showBack);
-    headerLogo.classList.toggle("hidden", !!showBack); // مثل القالب الأصلي: يظهر الشعار فقط في الرئيسية
-  }
+  
+function setHeader(title, showBack) {
+    const headerTitle = document.getElementById("headerTitle");
+    const backBtn = document.getElementById("backBtn");
+    const headerLogo = document.getElementById("headerLogo");
+
+    // Default to the home tagline when no title is passed
+    headerTitle.textContent = (title && title.trim()) ? title : "نغمة انتظارك.. تقديرٌ لمن يتصل بك.";
+
+    // Back button
+    if (showBack) backBtn.classList.remove("hidden");
+    else backBtn.classList.add("hidden");
+
+    // Logo: show only on home (when there is no back button)
+    if (headerLogo) headerLogo.style.display = showBack ? "none" : "";
+}
+
+
+
 
   function toastMsg(msg) {
     toast.textContent = msg;
@@ -279,6 +345,7 @@ function normalizeRingtone(r) {
       try { previewAudio.currentTime = 0; } catch(e) {}
 
       previewAudio.src = audioUrl;
+      try { previewAudio.load(); } catch(e) {} // start network/decode ASAP
 
       const onStarted = () => {
         if (token !== playToken) return;
@@ -401,6 +468,9 @@ function normalizeRingtone(r) {
       if (!q) return true;
       return (r._titleLC || String(r.title || "").toLowerCase()).includes(q);
     });
+
+    // Warm up first few audio files for faster response on slow devices
+    try { warmupAudioUrls(allItems.map(r => r.audio)); } catch(e) {}
 
     const PAGE_SIZE = q ? allItems.length : (opts.pageSize || 20);
     let page = 0;
@@ -538,6 +608,29 @@ function normalizeRingtone(r) {
   }
 
 
+  const CAT_ICONS = {
+    latest: "✨",
+    popular: "🔥",
+    duas: "🤲",
+    nasheeds: "🎵",
+    songs: "✍️",
+    zawamel: "⚔️",
+    "name-duas": "👨",
+    sports: "⚽",
+    misc: "🎧"
+  };
+
+  const CAT_DESCS = {
+    latest: "كن أول من يواكب التجديد.. أحدث النغمات المختارة بعناية لتناسب عصريتك.",
+    popular: "خيار الجمهور.. استعرض النغمات التي نالت إعجاب الآلاف وتصدرت القائمة.",
+    duas: "اجعل انتظارهم طاعة.. نفحات إيمانية تملأ القلوب بالسكينة والاطمئنان.",
+    nasheeds: "أعذب الألحان والكلمات.. مختارات من الأناشيد التي تلامس الروح.",
+    songs: "لأهل الذوق الرفيع.. قصائد وأبيات تحمل في طياتها بلاغة الكلمة وسحر القافية.",
+    zawamel: "أصالة التراث وقوة الكلمة.. زوامل حماسية تعبر عن العزة والشموخ.",
+    "name-duas": "لمسة خاصة لمن تحب.. أدعية مخصصة بأسماء مختارة لتجربة فريدة وودودة.",
+    sports: "للحماس عنوان.. نغمات تعكس شغفك بناديك المفضل وروح المنافسة."
+  };
+
   function renderCategories() {
     categoriesGrid.innerHTML = "";
     window.CATEGORIES.forEach((cat, index) => {
@@ -555,11 +648,15 @@ function normalizeRingtone(r) {
       const shine = document.createElement("div");
       shine.className = "cat-shine";
 
+      const icon = document.createElement("div");
+      icon.className = "cat-icon";
+      icon.textContent = cat.icon || CAT_ICONS[cat.id] || "🎧";
+
       const name = document.createElement("div");
       name.className = "cat-name";
       name.textContent = cat.name;
 
-      btn.append(bg, overlay, shine, name);
+      btn.append(bg, overlay, shine, icon, name);
       btn.onclick = () => openList(cat.id);
       categoriesGrid.appendChild(btn);
     });
@@ -588,6 +685,9 @@ function normalizeRingtone(r) {
 
     const cat = window.CATEGORIES.find(c => c.id === catId);
     setHeader(cat ? cat.name : "النغمات", true);
+    if (listPageSub) {
+      listPageSub.textContent = (cat && CAT_DESCS[cat.id]) ? CAT_DESCS[cat.id] : "";
+    }
 
     // Search UI
     currentQuery = "";
@@ -689,11 +789,14 @@ function normalizeRingtone(r) {
       }
     }
 
-    detailsName.textContent = r.title;
+    // Instruction text (replaces the repeated ringtone title under the image)
+    detailsName.textContent = "اضغط اشتراك ثم أرسل الكود عبر SMS";
 
     subsGrid.innerHTML = "";
     window.CARRIERS.forEach((c) => {
       const code = (r.codes?.[c.key]?.code || r.codes?.[(c.key === "yemen" ? "yemenMobile" : c.key)]?.code || "");
+      // Hide carrier button if subscription code is missing
+      if (!code) return;
       const box = document.createElement("div");
       box.className = "sub-card";
 
@@ -716,18 +819,29 @@ function normalizeRingtone(r) {
       left.append(logo, meta);
 
       const btn = document.createElement("button");
-      btn.className = "btn primary";
+      btn.className = `btn primary carrier-${c.key}`;
       btn.textContent = "اشتراك";
       btn.onclick = async () => {
         if (!c.number || !code) {
           toastMsg("لا يوجد كود لهذه الشركة");
           return;
         }
+        // Try to open SMS app; if it doesn't open, copy the code as a fallback
+        let didHide = false;
+        const onVis = () => {
+          if (document.visibilityState === "hidden") didHide = true;
+        };
+        document.addEventListener("visibilitychange", onVis, { once: true });
+
         window.location.href = makeSmsLink(c.number, code);
+
         setTimeout(async () => {
-          const ok = await copyToClipboard(code);
-          toastMsg(ok ? `تم نسخ الكود: ${code}` : "تعذر نسخ الكود");
-        }, 600);
+          // If the page didn't lose visibility, assume SMS app didn't open
+          if (!didHide) {
+            const ok = await copyToClipboard(code);
+            toastMsg(ok ? `لم يتم فتح الرسائل. تم نسخ الكود: ${code}` : "لم يتم فتح الرسائل. تعذر نسخ الكود");
+          }
+        }, 700);
       };
 
       box.append(left, btn);
@@ -761,8 +875,8 @@ function normalizeRingtone(r) {
     stopPreview();
     selectedCategory = null;
     selectedRingtoneId = null;
-    setHeader("خصّص رنينك بضغطة زر", false);
-    if (searchBtn) searchBtn.classList.add("hidden");
+    setHeader("نغمة انتظارك.. تقديرٌ لمن يتصل بك", false);
+if (searchBtn) searchBtn.classList.add("hidden");
     if (searchBar) searchBar.classList.add("hidden");
     showView("cats");
     if (__push) history.pushState({ view: "categories" }, "", "#");
