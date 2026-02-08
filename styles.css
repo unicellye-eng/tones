@@ -2439,3 +2439,21 @@ body{
   font-size:14px;
   opacity:.7;
 }
+
+/* === Performance tweaks (no visual changes) === */
+*{ -webkit-tap-highlight-color: transparent; }
+
+html, body{
+  overscroll-behavior: contain;
+}
+
+img{
+  content-visibility: auto;
+}
+
+
+/* Placeholder while details image is decoding/loading */
+.details-img.img-loading{
+  filter: blur(8px);
+  opacity: .6;
+}

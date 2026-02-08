@@ -2,7 +2,7 @@
 
 <html dir="rtl" lang="ar">
 <head>
-<meta content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self'; font-src 'self' data:; manifest-src 'self'; worker-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none" http-equiv="Content-Security-Policy"/>
+<meta content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; connect-src 'self'; font-src 'self' data:; manifest-src 'self'; worker-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; object-src 'none';" http-equiv="Content-Security-Policy"/>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="استمع لأجمل الرنات وميّز مكالماتك بنغمة مختلفة" name="description"/>
@@ -29,7 +29,7 @@
 <span class="chev">›</span>
 </button>
 <div class="brand">
-<img alt="Logo" class="logo" id="headerLogo" src="./icon-192.png"/>
+<img loading="lazy" decoding="async" alt="Logo" class="logo" id="headerLogo" src="./icon-192.png"/>
 <div class="brand-text"><h1 class="offset-right-title header-title center-title" id="headerTitle">نغمة انتظارك.. تقديرٌ لمن يتصل بك.</h1><div class="brand-sub"></div></div></div>
 <button aria-label="بحث" class="icon-btn hidden" id="searchBtn">
 <span class="search-ic">⌕</span>
@@ -60,7 +60,7 @@
 </section>
 <!-- List -->
 <section class="view hidden" id="viewList">
-<div class="pad"><div class="page"><div class="page-head"><p class="page-sub">اضغط للتشغيل أو استخدم البحث للعثور بسرعة</p></div><div class="page-tools"><div class="search-bar hidden" id="searchBar">
+<div class="pad"><div class="page"><div class="page-head"></div><div class="page-tools"><div class="search-bar hidden" id="searchBar">
 <input autocomplete="off" class="search-input" id="searchInput" placeholder="ابحث عن نغمة..." type="search"/>
 <button aria-label="مسح" class="icon-btn" id="searchClear">✕</button>
 </div></div><div class="list" id="listGrid"></div></div></div>
@@ -68,7 +68,7 @@
 <!-- Details -->
 <section class="view hidden" id="viewDetails">
 <div class="pad"><div class="page"><div class="details-card">
-<img alt="" class="details-img" id="detailsImage"/>
+<img alt="" class="details-img" id="detailsImage" loading="eager" decoding="async"/>
 <div class="details-name" id="detailsName"></div>
 <div class="subs" id="subsGrid"></div>
 <div class="toast hidden" id="toast"></div>
