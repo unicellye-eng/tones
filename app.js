@@ -1,650 +1,153 @@
 (() => {
-
-// === Icon helpers (avoid colored emoji on Android) ===
-const LAST_PLAYED_KEY = "alooh:lastPlayedId";
-
-
-// List scroll restore (when returning from details)
-  const LIST_SCROLL_KEY = "unicell_list_scroll_v1";
-  const LIST_LAST_ID_KEY = "unicell_list_last_id_v1";
-
-  function saveListScroll(ringtoneId) {
-    try {
-      const pad = document.querySelector("#viewList .pad");
-      const listGrid = document.getElementById("listGrid");
-      const payload = {
-        winY: window.scrollY || 0,
-        padY: pad ? pad.scrollTop : 0,
-        gridY: listGrid ? listGrid.scrollTop : 0,
-        catId: selectedCategory || null
-      };
-      sessionStorage.setItem(LIST_SCROLL_KEY, JSON.stringify(payload));
-      if (ringtoneId != null) sessionStorage.setItem(LIST_LAST_ID_KEY, String(ringtoneId));
-    } catch (e) {}
-  }
-
-  function restoreListScroll() {
-    try {
-      // Prefer centering on the last opened ringtone card (more stable than raw scroll values)
-      const lastId = sessionStorage.getItem(LIST_LAST_ID_KEY);
-      if (lastId) {
-        const btn = document.querySelector(`[data-play="${CSS.escape(lastId)}"]`);
-        const card = btn ? btn.closest(".tone") : null;
-        if (card && card.scrollIntoView) {
-          card.scrollIntoView({ block: "center", behavior: "auto" });
-          return;
-        }
-      }
-
-      // Fallback: use stored scroll positions if the card is not found
-      const raw = sessionStorage.getItem(LIST_SCROLL_KEY);
-      if (!raw) return;
-      const payload = JSON.parse(raw) || {};
-      const pad = document.querySelector("#viewList .pad");
-      const listGrid = document.getElementById("listGrid");
-
-      if (pad && typeof payload.padY === "number") pad.scrollTop = payload.padY;
-      if (listGrid && typeof payload.gridY === "number") listGrid.scrollTop = payload.gridY;
-      const y = (typeof payload.winY === "number") ? payload.winY : 0;
-      try { window.scrollTo({ top: y, left: 0, behavior: "auto" }); } catch (_) { window.scrollTo(0, y); }
-    } catch (e) {}
-  }
-const CLICK_GUARD_MS = 250;
-
-function setPlayIcon(btn) {
-  btn.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M8 5v14l11-7z"/></svg>`;
-  btn.setAttribute("aria-label", "تشغيل");
-}
-function setPauseIcon(btn) {
-  btn.innerHTML = `<svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>`;
-  btn.setAttribute("aria-label", "إيقاف مؤقت");
-}
-  const $ = (id) => document.getElementById(id);
-
-  const headerTitle = $("headerTitle");
-  const backBtn = $("backBtn");
-  const headerLogo = $("headerLogo");
-
-  const views = {
-    cats: $("viewCategories"),
-    list: $("viewList"),
-    details: $("viewDetails"),
-  };
-
-  const categoriesGrid = $("categoriesGrid");
-  const listGrid = $("listGrid");
-  const searchBtn = $("searchBtn");
-  const searchBar = $("searchBar");
-  const searchInput = $("searchInput");
-  const searchClear = $("searchClear");
-
-  const detailsImage = $("detailsImage");
-  const detailsName = $("detailsName");
-  const subsGrid = $("subsGrid");
-  const toast = $("toast");
-  const offlineHint = $("offlineHint");
-
-  // Audio preview (LIST ONLY)
-  const previewAudio = new Audio();
-  // Compatibility defaults (safe; no UI impact)
-  previewAudio.preload = "none";
-  try { previewAudio.setAttribute("playsinline", ""); } catch(e) {}
-  try { previewAudio.setAttribute("webkit-playsinline", ""); } catch(e) {}
-  let currentPlayingId = null;
-  let isStoppingPreview = false;
-
-
-  
-
-  // Prevent overlapping play requests when user taps quickly
-  let playToken = 0;
-
-  async function safeStop(token) {
-    if (!previewAudio || (!previewAudio.src && previewAudio.currentSrc === "")) {
-      currentPlayingId = null;
-      return;
-    }
-
-    // Fade-out quickly to avoid "pop/click"
-    try { fadeTo(previewAudio, 0, 90); } catch(e) {}
-
-    // Give the browser a moment to apply volume ramp
-    await new Promise(r => setTimeout(r, 60));
-
-    if (token !== playToken) return;
-
-    try { previewAudio.pause(); } catch(e) {}
-    try { previewAudio.currentTime = 0; } catch(e) {}
-
-    // Fully detach src to stop any buffered audio from bleeding
-    try { previewAudio.removeAttribute("src"); } catch(e) {}
-    try { previewAudio.load(); } catch(e) {}
-
-    currentPlayingId = null;
-
-    // Reset all play buttons to "play" icon
-    document.querySelectorAll("[data-play]").forEach(b => {
-      try { setPlayIcon(b); } catch(e) {}
-    });
-  }
-// Smooth audio fade to reduce "click/pop" when switching tones (especially on Android)
-  function fadeTo(audioEl, targetVolume, durationMs) {
-    try {
-      const start = (audioEl && typeof audioEl.volume === "number") ? audioEl.volume : 1;
-      const end = Math.max(0, Math.min(1, Number(targetVolume)));
-      const dur = Math.max(0, Number(durationMs) || 0);
-      if (!dur) { try { audioEl.volume = end; } catch(e) {} return; }
-
-      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
-      const step = (t) => {
-        const now = (typeof t === "number") ? t : ((window.performance && performance.now) ? performance.now() : Date.now());
-        const p = Math.min(1, (now - t0) / dur);
-        try { audioEl.volume = start + (end - start) * p; } catch(e) {}
-        if (p < 1) requestAnimationFrame(step);
-      };
-      requestAnimationFrame(step);
-    } catch(e) {}
-  }
-
-  let currentView = "categories"; // categories | list | details
-  let selectedCategory = null;     // category id
-  let selectedRingtoneId = null;
-  let currentQuery = "";
-
-  // Cleanup controller for list button listeners (prevents leaks on re-render)
-  let listAbort = new AbortController();
-
-    // Lightweight rendering for "بالاسم" content:
-  // Instead of generating canvas images (heavy on low-end devices), we show a static fallback image,
-  // and (in the list) we render the name as bold text in the thumbnail area.
-  function isByNameRingtone(r) {
-    return ((r?.categories || []).some(n => String(n || "").includes("بالاسم")));
-  }
-
-  function extractNameOnly(title) {
-    const t = String(title || "").trim();
-    const cleaned = t
-      .replace(/^\s*(دعاء)\s+/u, "")
-      .replace(/^\s*(رد\s*آلي|رد)\s+/u, "")
-      .trim();
-    return cleaned || t;
-  }
-
-  function getDisplayImage(r) {
-    if (!r) return "";
-    const byName = isByNameRingtone(r);
-    if (!byName) return r.image || "";
-    return (
-      r.image ||
-      ((r?.categories || []).some(n => String(n || "").includes("أدعية"))
-        ? "ringtones/images/cat-name-duas.jpg"
-        : "ringtones/images/cat-name-replies.jpg")
-    );
-  }
-
-function normalizeRingtone(r) {
-    // Defensive normalization (prevents crashes from unexpected/missing fields)
-    const obj = (r && typeof r === "object") ? r : {};
-    const id = obj.id ?? obj._id ?? obj.uuid ?? String(Math.random());
-    const title = String(obj.title ?? obj.name ?? "").trim();
-    const audio = String(obj.audio ?? obj.audioUrl ?? obj.url ?? "").trim();
-    const image = String(obj.image ?? obj.img ?? obj.cover ?? "").trim();
-    const categories = Array.isArray(obj.categories) ? obj.categories.filter(Boolean).map(String) : [];
-    const rank = (obj.rank && typeof obj.rank === "object") ? obj.rank : {};
-    return {
-      ...obj,
-      id,
-      title,
-      // cached lowercase title for fast search/filter
-      _titleLC: title.toLowerCase(),
-      audio,
-      image,
-      categories,
-      rank
-    };
-  }
-
-  // === Data caches (performance) ===
-  // Normalize RINGTONES once, and cache per-category filtered/sorted lists.
-  let __allNormalized = null;
-  const __catCache = new Map();
-
-  // If you edit data.js while the page is open, cached lists won't update.
-  // We clear caches when navigating into a category to reflect latest data.
-  function invalidateRingtoneCaches() {
-    __allNormalized = null;
-    __catCache.clear();
-  }
-
-  function getAllNormalizedRingtones() {
-    if (__allNormalized) return __allNormalized;
-    __allNormalized = (window.RINGTONES || []).map(normalizeRingtone);
-    return __allNormalized;
-  }
-
-  function getCachedCategory(catId, builder) {
-    if (__catCache.has(catId)) return __catCache.get(catId);
-    const value = builder();
-    __catCache.set(catId, value);
-    return value;
-  }
-
-  function showView(name) {
-    Object.values(views).forEach(v => v.classList.add("hidden"));
-    views[name].classList.remove("hidden");
-    currentView = name === "cats" ? "categories" : (name === "list" ? "list" : "details");
-  }
-
-  function setHeader(title, showBack) {
-    headerTitle.textContent = title || "خصص رنين إنتظارك بضغطة زر";
-    backBtn.classList.toggle("hidden", !showBack);
-    headerLogo.classList.toggle("hidden", !!showBack); // مثل القالب الأصلي: يظهر الشعار فقط في الرئيسية
-  }
-
-  function toastMsg(msg) {
-    toast.textContent = msg;
-    toast.classList.remove("hidden");
-    setTimeout(() => toast.classList.add("hidden"), 1800);
-  }
-
-  function stopPreview() {
-    if (isStoppingPreview) return;
-    isStoppingPreview = true;
-    const token = ++playToken;
-    safeStop(token).finally(() => { isStoppingPreview = false; });
-  }
-
-  function playToggle(id, audioUrl, btn) {
-    const token = ++playToken;
-
-    // Guard against double taps / rapid clicks on mobile
-    if (btn?.dataset?.busy === "1") return;
-    if (btn) {
-      btn.dataset.busy = "1";
-      setTimeout(() => { try { btn.dataset.busy = "0"; } catch(e) {} }, CLICK_GUARD_MS);
-    }
-
-    // If user taps the same tone -> stop
-    if (currentPlayingId === id) {
-      safeStop(token);
-      return;
-    }
-
-    // Stop any previous tone smoothly
-    safeStop(token).then(() => {
-      if (token !== playToken) return;
-
-      // Start muted then fade-in to avoid click/pop on start/switch
-      try { previewAudio.volume = 0; } catch(e) {}
-      try { previewAudio.currentTime = 0; } catch(e) {}
-
-      previewAudio.src = audioUrl;
-
-      const onStarted = () => {
-        if (token !== playToken) return;
-        fadeTo(previewAudio, 1, 140);
-        currentPlayingId = id;
-        try { localStorage.setItem(LAST_PLAYED_KEY, String(id)); } catch (e) {}
-        if (btn) setPauseIcon(btn);
-      };
-
-      const onFailed = () => {
-        try { if (btn) { setPlayIcon(btn); btn.dataset.busy = "0"; } } catch(e) {}
-        toastMsg("تعذر تشغيل الصوت");
-      };
-
-      const p = previewAudio.play();
-      if (p && typeof p.then === "function") {
-        p.then(onStarted).catch(() => {
-          // Retry once (mobile autoplay / decode quirks)
-          try {
-            if (!previewAudio._retry) previewAudio._retry = 0;
-            if (previewAudio._retry < 1) {
-              previewAudio._retry += 1;
-              try { previewAudio.currentTime = 0; } catch(e) {}
-              const p2 = previewAudio.play();
-              if (p2 && typeof p2.then === "function") {
-                p2.then(onStarted).catch(onFailed);
-              } else {
-                onStarted();
-              }
-              return;
-            }
-          } catch(e) {}
-          onFailed();
-        });
-      } else {
-        // Older browsers
-        onStarted();
-      }
-    });
-  }
-  previewAudio.addEventListener("ended", stopPreview);
-  // Robust state recovery (no UI change)
-  ["error","abort","stalled"].forEach(ev => {
-    previewAudio.addEventListener(ev, () => {
-      // If something goes wrong mid-play, ensure icons/state reset
-      if (currentPlayingId != null) stopPreview();
-    });
-  });
-  previewAudio.addEventListener("pause", () => {
-    // Some browsers pause audio when switching apps; keep UI consistent
-    if (!isStoppingPreview && currentPlayingId != null) stopPreview();
-  });
-
-  // Stop audio when the page is hidden (prevents stuck playback on mobile)
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) stopPreview();
-  });
-
-  function ringtonesForCategory(catId) {
-    // Heavy work (normalization + sorting) is cached per category.
-    return getCachedCategory(catId, () => {
-      const catObj = (window.CATEGORIES || []).find(c => c.id === catId);
-      const catName = catObj ? catObj.name : "";
-
-      const all = getAllNormalizedRingtones();
-
-        const hasCat = (r, cat) => {
-      const cats = (r && r.categories) ? r.categories : [];
-      if (!cat) return false;
-      if (typeof cat === "string") return cats.includes(cat);
-      const id = cat.id;
-      const name = cat.name;
-      return (name && cats.includes(name)) || (id && cats.includes(id));
-    };
-
-    const sortByRankOrDate = (items, name) => {
-      return items.slice().sort((a, b) => {
-        const ra = a.rank?.[name];
-        const rb = b.rank?.[name];
-        const hasRa = Number.isFinite(ra);
-        const hasRb = Number.isFinite(rb);
-        if (hasRa && hasRb) return ra - rb;
-        if (hasRa) return -1;
-        if (hasRb) return 1;
-
-        const da = Date.parse(a.createdAt || "") || 0;
-        const db = Date.parse(b.createdAt || "") || 0;
-        return db - da; // newer first
-      });
-    };
-
-      if (catId === "latest") {
-      // "الأحدث" يعرض كل النغمات من كل الأقسام
-      // مع استثناء أي نغمة تنتمي لأي قسم يحتوي اسمه على كلمة "بالاسم"
-            const filtered = all.filter(r => !isByNameRingtone(r));
-        return filtered.slice().sort((a, b) => (Date.parse(b.createdAt || "") || 0) - (Date.parse(a.createdAt || "") || 0));
-      }
-
-      if (catId === "popular") {
-      // "الأكثر تحميلًا" بحسب ترتيب rank إن وجد
-            const popularObj = (window.CATEGORIES || []).find(c => c.id === "popular") || { id: "popular", name: "الأكثر تحميلًا" };
-      const rankKey = popularObj.name || "الأكثر تحميلًا";
-      const filtered = all.filter(r => hasCat(r, popularObj) || hasCat(r, "popular"));
-      return sortByRankOrDate(filtered, rankKey);
-      }
-
-    // باقي الأقسام
-            const filtered = catObj ? all.filter(r => hasCat(r, catObj) || (catName && hasCat(r, catName)) || hasCat(r, catId)) : all;
-      return catName ? sortByRankOrDate(filtered, catName) : filtered;
-    });
-  }
-
-  function renderList(catId, query, opts = {}) {
-    // Cleanup old listeners from previous render
-    try { listAbort.abort(); } catch(e) {}
-    listAbort = new AbortController();
-
-    const q = (query || "").trim().toLowerCase();
-    const allItems = ringtonesForCategory(catId).filter(r => {
-      if (!q) return true;
-      return (r._titleLC || String(r.title || "").toLowerCase()).includes(q);
-    });
-
-    const PAGE_SIZE = q ? allItems.length : (opts.pageSize || 20);
-    let page = 0;
-
-    let loadingMore = false;
-    listGrid.innerHTML = "";
-
-    function renderPage() {
-      const start = page * PAGE_SIZE;
-      const end = Math.min(allItems.length, start + PAGE_SIZE);
-      const items = allItems.slice(start, end);
-
-      items.forEach((r) => {
-        const row = document.createElement("div");
-        row.className = "tone";
-
-        const isByName = isByNameRingtone(r);
-
-        let thumbEl;
-        if (isByName) {
-          // Show the name directly (fast, no canvas generation)
-          const ph = document.createElement("div");
-          ph.className = "thumb thumb-name";
-          ph.textContent = extractNameOnly(r.title || "");
-          ph.setAttribute("aria-label", r.title || "");
-
-          // Minimal inline styling so it looks good even without extra CSS
-          ph.style.display = "flex";
-          ph.style.alignItems = "center";
-          ph.style.justifyContent = "center";
-          ph.style.textAlign = "center";
-          ph.style.fontWeight = "800";
-          ph.style.lineHeight = "1.2";
-          ph.style.padding = "10px";
-          ph.style.background = "#111c27";
-          ph.style.color = "#fff";
-          ph.style.userSelect = "none";
-          thumbEl = ph;
-        } else {
-          const img = document.createElement("img");
-          img.className = "thumb";
-          img.src = getDisplayImage(r);
-          img.loading = "lazy";
-          img.alt = r.title || "";
-          img.onerror = () => {
-            img.onerror = null;
-            img.src =
-              "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII=";
-          };
-          thumbEl = img;
-        }
-
-        const name = document.createElement("div");
-        name.className = "tone-name";
-        name.textContent = r.title || "";
-
-        const play = document.createElement("button");
-        play.className = "btn play";
-        play.dataset.play = r.id;
-        setPlayIcon(play);
-        play.addEventListener(
-          "click",
-          (e) => {
-            e.stopPropagation();
-            playToggle(r.id, r.audio, play);
-          },
-          { signal: listAbort.signal }
-        );
-
-        const actions = document.createElement("div");
-        actions.className = "tone-actions";
-
-        const subscribe = document.createElement("button");
-        subscribe.className = "btn primary subscribe";
-        subscribe.textContent = "تفاصيل";
-        subscribe.addEventListener(
-          "click",
-          (e) => {
-            e.stopPropagation();
-            openDetails(r.id);
-          },
-          { signal: listAbort.signal }
-        );
-        actions.append(play, subscribe);
-        row.append(thumbEl, name, actions);
-        listGrid.appendChild(row);
-      });
-
-      // Update / add "Load more" button
-      const existingBtn = document.getElementById("loadMoreBtn");
-      if (existingBtn) existingBtn.remove();
-      const existingSentinel = document.getElementById("loadMoreSentinel");
-      if (existingSentinel) existingSentinel.remove();
-
-      // Infinite scroll: append a sentinel that loads the next page when it enters view
-      if (end < allItems.length) {
-        const sentinel = document.createElement("div");
-        sentinel.id = "loadMoreSentinel";
-        sentinel.className = "load-more-sentinel";
-        sentinel.innerHTML = `
-          <div class="spinner" aria-hidden="true"></div>
-          <div class="load-more-text">جاري تحميل المزيد...</div>
-        `;
-        listGrid.appendChild(sentinel);
-
-        const io = new IntersectionObserver((entries) => {
-          for (const e of entries) {
-            if (!e.isIntersecting) continue;
-            io.disconnect();
-            if (loadingMore) return;
-            loadingMore = true;
-            page += 1;
-            requestAnimationFrame(() => {
-              loadingMore = false;
-              renderPage();
-            });
-            break;
-          }
-        }, { root: null, rootMargin: "300px 0px", threshold: 0.01 });
-
-        io.observe(sentinel);
-        listAbort.signal.addEventListener("abort", () => io.disconnect(), { once: true });
-      }
-    }
-
-    if (allItems.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "empty";
-      empty.textContent = "لا توجد نتائج.";
-      listGrid.appendChild(empty);
-      return;
-    }
-
-    renderPage();
-  }
-
-  const CAT_ICONS = {
-    "popular": "🔥",
-    "latest": "✨",
-    "nasheeds": "🎵",
-    "duas": "🙏",
-    "zawamel": "⚔️",
-    "songs": "✍️",
-    "sports": "⚽",
-    "name-duas": "👦",
-    "misc": "🎧"
-  };
-
-
-  function renderCategories() {
-    categoriesGrid.innerHTML = "";
-    window.CATEGORIES.forEach((cat, index) => {
-      const btn = document.createElement("button");
-      btn.className = "cat-card";
-
-      const icon = document.createElement("div");
-      icon.className = "cat-icon";
-      icon.textContent = CAT_ICONS[cat.id] || "🎧";
-
-      btn.style.animationDelay = `${index * 80}ms`;
-
-      const bg = document.createElement("div");
-      bg.className = "cat-bg";
-      bg.style.backgroundImage = `url('${cat.image || ""}')`;
-
-      const overlay = document.createElement("div");
-      overlay.className = "cat-overlay";
-
-      const shine = document.createElement("div");
-      shine.className = "cat-shine";
-
-      const name = document.createElement("div");
-      name.className = "cat-name";
-      name.textContent = cat.name;
-
-      btn.append(bg, overlay, shine, icon, name);
-      btn.onclick = () => openList(cat.id);
-      categoriesGrid.appendChild(btn);
-    });
-  }
-
-  function scrollListToTop() {
-    // Ensure the list view starts from the beginning when entering/switching categories
-    const pad = document.querySelector("#viewList .pad");
-    if (pad) pad.scrollTop = 0;
-
-    const listGrid = document.getElementById("listGrid");
-    if (listGrid) listGrid.scrollTop = 0;
-
-    // Also reset page scroll (mobile browsers may scroll the whole page)
-    try { window.scrollTo({ top: 0, left: 0, behavior: "auto" }); } catch (_) { window.scrollTo(0, 0); }
+  const tabsEl = document.getElementById("tabs");
+  const listEl = document.getElementById("list");
+  const searchInput = document.getElementById("searchInput");
+  const countPill = document.getElementById("countPill");
+  const player = document.getElementById("player");
+
+  function stopAudio(){
+    try{ player.pause(); }catch{}
+    try{ player.currentTime = 0; }catch{}
+    if (currentPlayId) setPlayingUI(currentPlayId, false);
+    currentPlayId = null;
   }
 
 
-  function openList(catId, opts = {}) {
-    const __push = opts.push !== false;
-    const __prevView = currentView;
-    stopPreview();
-    invalidateRingtoneCaches();
-    selectedCategory = catId;
-    selectedRingtoneId = null;
+  // CSS.escape polyfill (basic)
+  if (typeof CSS === "undefined") window.CSS = {};
+  if (typeof CSS.escape !== "function") {
+    CSS.escape = (s) => (s + "").replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  }
 
-    const cat = window.CATEGORIES.find(c => c.id === catId);
-    setHeader(cat ? cat.name : "النغمات", true);
 
-    // Search UI
-    currentQuery = "";
-    if (searchInput) searchInput.value = "";
-    if (searchBar) searchBar.classList.add("hidden");
-    if (searchBtn) searchBtn.classList.remove("hidden");
+  let currentPlayId = null;
 
-    showView("list");
-    // When returning from details, render enough items so the same card exists in DOM
-    let __restoreSize = 0;
-    if (opts.restoreScroll) {
-      try {
-        const lastId = sessionStorage.getItem(LIST_LAST_ID_KEY);
-        if (lastId) {
-          const items = ringtonesForCategory(catId);
-          const idx = items.findIndex(r => String(r.id) === String(lastId));
-          if (idx >= 0) __restoreSize = Math.max(20, idx + 1);
-        }
-      } catch (e) {}
-    }
-    renderList(catId, currentQuery, __restoreSize ? { pageSize: __restoreSize } : undefined);
-// Start list from top unless we are returning from details
-    if (opts.restoreScroll) {
-      requestAnimationFrame(() => restoreListScroll());
+  function setPlayingUI(id, isPlaying){
+    // clear all first
+    document.querySelectorAll(".card.playing").forEach(el => el.classList.remove("playing"));
+    document.querySelectorAll(".play-btn").forEach(el => { if(el) el.textContent = "▶"; });
+
+    if (!id) return;
+    const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+    if (!card) return;
+    const btn = card.querySelector(".play-btn");
+    if (isPlaying){
+      card.classList.add("playing");
+      if (btn) btn.textContent = "❚❚";
     } else {
-      requestAnimationFrame(scrollListToTop);
+      card.classList.remove("playing");
+      if (btn) btn.textContent = "▶";
+    }
+  }
+
+  player.addEventListener("ended", () => {
+    if (currentPlayId) setPlayingUI(currentPlayId, false);
+    currentPlayId = null;
+  });
+  player.addEventListener("pause", () => {
+    if (currentPlayId) setPlayingUI(currentPlayId, false);
+  });
+  player.addEventListener("play", () => {
+    if (currentPlayId) setPlayingUI(currentPlayId, true);
+  });
+
+  function togglePlay(item){
+    const id = item?.id || null;
+    const src = item?.audio;
+    if (!id || !src) return;
+
+    // same item toggles
+    if (currentPlayId === id){
+      if (!player.paused){
+        player.pause();
+      } else {
+        player.play().catch(()=>{});
+      }
+      return;
     }
 
-    if (__push) {
-      const __state = { view: "list", catId };
-      const __url = `#list-${encodeURIComponent(catId)}`;
-      // If we are already in a list and user is just switching categories, don't stack history entries.
-      if (__prevView === "list") history.replaceState(__state, "", __url);
-      else history.pushState(__state, "", __url);
+    // switch to new item
+    currentPlayId = id;
+    player.src = src;
+    player.play().catch(()=>{});
+    setPlayingUI(id, true);
+  }
+
+  const modal = document.getElementById("modal");
+  const modalClose = document.getElementById("modalClose");
+  const modalX = document.getElementById("modalX");  const modalTitle = document.getElementById("modalTitle");
+  const modalBody = document.getElementById("modalBody");
+
+  const CATS = Array.isArray(window.CATEGORIES) ? window.CATEGORIES : [];
+  const R = Array.isArray(window.RINGTONES) ? window.RINGTONES : [];
+  const CARRIERS = Array.isArray(window.CARRIERS) ? window.CARRIERS : [];
+
+  let activeCat = "all";
+  let lastCopy = "";
+
+  const MODAL_STATE_KEY = "tahdithi_modal_state_v1";
+
+  function saveModalState(state){
+    try{ sessionStorage.setItem(MODAL_STATE_KEY, JSON.stringify(state)); }catch{}
+  }
+  function loadModalState(){
+    try{ return JSON.parse(sessionStorage.getItem(MODAL_STATE_KEY) || "null"); }catch{ return null; }
+  }
+  function clearModalState(){
+    try{ sessionStorage.removeItem(MODAL_STATE_KEY); }catch{}
+  }
+
+  let modalOpen = false;
+  let currentItemId = null;
+
+  function pushModalHistory(itemId){
+    try{
+      // Avoid stacking multiple modal states
+      if (history.state && history.state.__modal) return;
+      history.pushState({__modal:true, itemId}, "", location.href);
+    }catch{}
+  }
+
+  window.addEventListener("popstate", (e) => {
+    // If modal is open, back should close it instead of leaving page
+    if (modalOpen) {
+      closeModal(true);
     }
+  });
+
+  // Restore modal after returning from SMS app or page cache
+  window.addEventListener("pageshow", () => {
+    const st = loadModalState();
+    if (st && st.open && st.itemId) {
+      const r = R.find(x => x && x.id === st.itemId);
+      if (r) {
+        // restore scroll first
+        if (typeof st.scrollY === "number") window.scrollTo(0, st.scrollY);
+        openModal(r, /*skipHistory*/ true);
+      }
+      clearModalState();
+    }
+  });
+
+  function escapeHtml(s) {
+    return (s ?? "").toString()
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function toast(msg){
+    const t=document.createElement("div");
+    t.className="toast";
+    t.textContent=msg;
+    document.body.appendChild(t);
+    setTimeout(()=>t.remove(), 1800);
   }
 
   function makeSmsLink(number, body) {
     const encoded = encodeURIComponent(body || "");
-    // iOS prefers using "&body=" while many Android browsers accept "?body="
     const ua = navigator.userAgent || "";
     const isIOS = /iPad|iPhone|iPod/i.test(ua) && !window.MSStream;
     const sep = isIOS ? "&" : "?";
@@ -666,398 +169,192 @@ function normalizeRingtone(r) {
     }
   }
 
-  function openDetails(ringtoneId, opts = {}) {
-    const __push = opts.push !== false;
-    stopPreview();
-    if (searchBtn) searchBtn.classList.add("hidden");
-    if (searchBar) searchBar.classList.add("hidden");
-    selectedRingtoneId = ringtoneId;
-    const raw = (window.RINGTONES || []).find(x => x.id === ringtoneId);
-    if (!raw) return;
-    const r = normalizeRingtone(raw);
+  function tabButton(id, name) {
+    const b = document.createElement("button");
+    b.className = "tab" + (id === activeCat ? " active" : "");
+    b.textContent = name;
+    b.onclick = () => { stopAudio();
+      activeCat = id;
+      [...tabsEl.children].forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      render();
+    };
+    return b;
+  }
 
-    setHeader(r.title, true);
-    // Remember where we were in the list
-    saveListScroll(ringtoneId);
-    showView("details");
+  function initTabs() {
+    tabsEl.innerHTML = "";
+    tabsEl.appendChild(tabButton("all", "الكل"));
+    for (const c of CATS) {
+    if ((c.name || "").trim() === "الأحدث") continue;
+    tabsEl.appendChild(tabButton(c.id, c.name));
+  }
+  }
 
-    // === Details image handling ===
-    // For "بالاسم" items: don't generate any canvas image at all.
-    // Show the name in a bold block (CSS handles layout), and hide the <img> to keep the view fast.
-    const detailsCard = detailsImage ? detailsImage.closest(".details-card") : null;
-    const byName = isByNameRingtone(r);
-    if (detailsCard) detailsCard.classList.toggle("name-only", byName);
+  function inCat(it) {
+    if (activeCat === "all") return true;
+    const cats = it?.categories || [];
+    return cats.includes(activeCat) || cats.includes(CATS.find(x=>x.id===activeCat)?.name);
+  }
 
-    if (byName) {
-      if (detailsImage) {
-        detailsImage.classList.add("hidden");
-        detailsImage.removeAttribute("src");
-        detailsImage.alt = "";
-      }
-    } else {
-      if (detailsImage) {
-        detailsImage.classList.remove("hidden");
-        detailsImage.src = getDisplayImage(r, { generate: false });
-        detailsImage.alt = r.title;
-        detailsImage.onerror = () => {
-          detailsImage.onerror = null;
-          detailsImage.src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2Y7u8AAAAASUVORK5CYII=";
-        };
-      }
-    }
+  function matchesSearch(it, q) {
+    if (!q) return true;
+    const t = (it?.title || "").toLowerCase();
+    const p = (it?.performer || "").toLowerCase();
+    return t.includes(q) || p.includes(q);
+  }
 
-    // Instruction text (replaces the repeated ringtone title under the image)
-    detailsName.textContent = "اضغط اشتراك ثم أرسل الكود عبر SMS";
+  function getImage(it) {
+    return it?.image || "./icon-192.png";
+  }
 
-    subsGrid.innerHTML = "";
-    window.CARRIERS.forEach((c) => {
-      const code = (r.codes?.[c.key]?.code || r.codes?.[(c.key === "yemen" ? "yemenMobile" : c.key)]?.code || "");
-      // Hide carrier button if subscription code is missing
-      if (!code) return;
-      const box = document.createElement("div");
-      box.className = "sub-card";
+  function play(it) {
+    const src = it?.audio;
+    if (!src) return;
+    try {
+      player.src = src;
+      player.play().catch(() => {});
+    } catch {}
+  }
 
-      const left = document.createElement("div");
-      left.className = "sub-left";
+  function getCodeForCarrier(r, carrierKey){
+    const ck = carrierKey;
+    return (
+      r?.codes?.[ck]?.code ||
+      r?.codes?.[(ck === "yemen" ? "yemenMobile" : ck)]?.code ||
+      ""
+    );
+  }
 
-      const logo = document.createElement("img");
-      logo.className = "carrier";
-      logo.src = c.logo;
-      logo.alt = c.name;
+  function openModal(r, skipHistory=false) {
+    stopAudio();
+    modalTitle.textContent = "الاشتراك";
+    modalOpen = true;
+    currentItemId = r?.id || null;
+    if (!skipHistory) pushModalHistory(currentItemId);
+    const title = escapeHtml(r?.title || "");
+    const performer = escapeHtml(r?.performer || "");
 
-      const meta = document.createElement("div");
-      meta.className = "sub-meta";
-      meta.innerHTML = `
-        <div class="cname">${c.name}</div>
-        <div class="cnum">رقم الخدمة: ${c.number || "-"}</div>
-        <div class="ccode">الكود: ${code || "-"}</div>
+    const carrierRows = CARRIERS.map((c) => {
+      const code = getCodeForCarrier(r, c.key);
+      if (!code) return "";
+      const logo = escapeHtml(c.logo || "");
+      const name = escapeHtml(c.name || "");
+      const num = escapeHtml(c.number || "");
+      return `
+        <div class="carrier-row">
+          <div class="c-left">
+            <img src="${logo}" alt="${name}">
+            <div class="c-meta">
+              <div class="c-name">${name}</div>
+              <div class="c-sub">رقم الخدمة: ${num} • الكود: ${escapeHtml(code)}</div>
+            </div>
+          </div>
+          <button class="c-btn ${escapeHtml(c.key)}" data-key="${escapeHtml(c.key)}">اشتراك</button>
+        </div>
       `;
+    }).join("");
 
-      left.append(logo, meta);
+    modalBody.innerHTML = `
+      <div style="font-weight:900;font-size:16px;margin-bottom:6px">${title}</div>
+      ${performer ? `<div style="color:rgba(255,255,255,.65);font-size:12px;margin-bottom:10px">${performer}</div>` : ``}
+      <div style="color:rgba(255,255,255,.75);font-size:13px;margin-bottom:8px">اضغط اشتراك ثم أرسل الكود عبر SMS.</div>
+      <div class="carriers">${carrierRows || `<div class="pill" style="text-align:center">لا توجد أكواد اشتراك لهذه النغمة.</div>`}</div>
+    `;
 
-      const btn = document.createElement("button");
-      btn.className = `btn primary carrier-${c.key}`;
-      btn.textContent = "اشتراك";
-      btn.onclick = async () => {
-        if (!c.number || !code) {
-          toastMsg("لا يوجد كود لهذه الشركة");
-          return;
-        }
-        // Try to open SMS app; if it doesn't open, copy the code as a fallback
+    lastCopy = ""; // will update when user selects carrier
+    modal.classList.remove("hidden");
+
+    // wire carrier buttons
+    modalBody.querySelectorAll(".c-btn").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const key = btn.getAttribute("data-key") || "";
+        const carrier = CARRIERS.find(x => x.key === key);
+        const code = getCodeForCarrier(r, key);
+        if (!carrier?.number || !code) { toast("لا يوجد كود لهذه الشركة"); return; }
+        lastCopy = code;
+
         let didHide = false;
-        const onVis = () => {
-          if (document.visibilityState === "hidden") didHide = true;
-        };
-        document.addEventListener("visibilitychange", onVis, { once: true });
+        const onVis = () => { if (document.visibilityState === "hidden") didHide = true; };
+        window.addEventListener("pagehide", () => stopAudio());
+  document.addEventListener("visibilitychange", onVis, { once:true });
 
-        window.location.href = makeSmsLink(c.number, code);
+        // Copy code now (so user can paste even if SMS doesn't open)
+        await copyToClipboard(code);
+        // Save state so returning/back won't kick you out of the site
+        saveModalState({open:true, itemId: currentItemId, scrollY: window.scrollY});
+        window.location.href = makeSmsLink(carrier.number, code);
 
         setTimeout(async () => {
-          // If the page didn't lose visibility, assume SMS app didn't open
           if (!didHide) {
             const ok = await copyToClipboard(code);
-            toastMsg(ok ? `لم يتم فتح الرسائل. تم نسخ الكود: ${code}` : "لم يتم فتح الرسائل. تعذر نسخ الكود");
+            toast(ok ? `تم نسخ كود النغمة: ${code}. قم بإرسالها إلى رقم الخدمة: ${carrier.number}.` : `لم يتم فتح الرسائل. الكود: ${code} • رقم الخدمة: ${carrier.number}`);
           }
         }, 700);
-      };
-
-      box.append(left, btn);
-      subsGrid.appendChild(box);
-    });
-
-    if (__push) history.pushState({ view: "details", ringtoneId }, "", `#details-${encodeURIComponent(ringtoneId)}`);
-  }
-
-  function goBack() {
-    if (currentView === "details") {
-      // back to list
-      if (selectedCategory) {
-        openList(selectedCategory, { push: false, restoreScroll: true });
-        // Keep URL/state consistent (avoid staying on #details-...)
-        try { history.replaceState({ view: "list", catId: selectedCategory }, "", `#list-${encodeURIComponent(selectedCategory)}`); } catch (e) {}
-      } else {
-        openHome({ push: false });
-      }
-      return;
-    }
-    if (currentView === "list") {
-      openHome();
-      return;
-    }
-    openHome();
-  }
-
-  function openHome(opts = {}) {
-    const __push = opts.push !== false;
-    stopPreview();
-    selectedCategory = null;
-    selectedRingtoneId = null;
-    setHeader("خصص رنين إنتظارك بضغطة زر", false);
-    if (searchBtn) searchBtn.classList.add("hidden");
-    if (searchBar) searchBar.classList.add("hidden");
-    showView("cats");
-    if (__push) history.pushState({ view: "categories" }, "", "#");
-  }
-
-  backBtn.addEventListener("click", goBack);
-
-  // Search controls (List view)
-  if (searchBtn) {
-    searchBtn.addEventListener("click", () => {
-      if (!searchBar) return;
-      const willShow = searchBar.classList.contains("hidden");
-      searchBar.classList.toggle("hidden", !willShow);
-      if (willShow && searchInput) searchInput.focus();
-      if (!willShow) {
-        currentQuery = "";
-        if (searchInput) searchInput.value = "";
-        if (selectedCategory) renderList(selectedCategory, currentQuery);
-      }
+      });
     });
   }
 
-  // Debounced search (keeps typing smooth on weaker phones)
-  let __searchT = null;
-  if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      currentQuery = searchInput.value || "";
-      if (__searchT) clearTimeout(__searchT);
-      __searchT = setTimeout(() => {
-        if (selectedCategory) renderList(selectedCategory, currentQuery);
-      }, 140);
-    });
+  function closeModal(fromPop=false) {
+    stopAudio(); modal.classList.add("hidden"); modalOpen = false; currentItemId = null; if (!fromPop) { try{ if (history.state && history.state.__modal) history.back(); }catch{} } }
+  modalClose.onclick = () => closeModal();
+  modalX.onclick = () => closeModal();
+  function card(r) {
+    const title = escapeHtml(r?.title || "بدون عنوان");
+    const performer = escapeHtml(r?.performer || "");
+    const img = getImage(r);
+
+    const wrap = document.createElement("div");
+    wrap.className = "card";
+    if (r?.id) wrap.dataset.id = r.id;
+    wrap.innerHTML = `
+      <button class="btn-sub" type="button">اشتراك</button>
+      <div class="meta">
+        <div class="title">${title}</div>
+        <div class="sub">${performer || "&nbsp;"}</div>
+      </div>
+      <div class="thumb">
+        <img alt="" loading="lazy" decoding="async" src="${img}">
+        <div class="play-overlay" aria-hidden="true">
+          <div class="play-btn">▶</div>
+        </div>
+      </div>
+    `;    wrap.querySelector(".btn-sub").onclick = (e) => { e.stopPropagation(); openModal(r); };    // تشغيل/إيقاف عند الضغط على الصورة فقط
+    const thumb = wrap.querySelector(".thumb");
+    if (thumb) thumb.onclick = (e) => { e.stopPropagation(); togglePlay(r); };
+    const ov = wrap.querySelector(".play-overlay");
+    if (ov) ov.onclick = (e) => { e.stopPropagation(); togglePlay(r); };
+    // Card tap toggles play/pause (except subscribe button)
+    wrap.addEventListener("click", (e) => {
+      const t = e.target;
+      if (t && (t.closest("button") || t.closest("a"))) return;
+      togglePlay(r);
+    }, { passive: true });
+
+    return wrap;
   }
 
-  if (searchClear) {
-    searchClear.addEventListener("click", () => {
-      currentQuery = "";
-      if (searchInput) {
-        searchInput.value = "";
-        searchInput.focus();
-      }
-      if (selectedCategory) renderList(selectedCategory, currentQuery);
-    });
+  function render() {
+    const q = (searchInput.value || "").trim().toLowerCase();
+    const arr = R.filter(inCat).filter(it => matchesSearch(it, q));
+
+    countPill.textContent = `${arr.length} نغمة`;
+    listEl.innerHTML = "";
+    if (arr.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "pill";
+      empty.style.textAlign = "center";
+      empty.style.marginTop = "10px";
+      empty.textContent = "لا توجد نتائج.";
+      listEl.appendChild(empty);
+      return;
+    }
+    for (const it of arr) listEl.appendChild(card(it));
   }
 
-  window.addEventListener("popstate", (e) => {
-    const st = (e && e.state) ? e.state : (history.state || {});
-    const h = location.hash || "";
+  searchInput.addEventListener("input", render);
 
-    const getFromHash = (prefix) => {
-      if (!h.startsWith(prefix)) return null;
-      try { return decodeURIComponent(h.slice(prefix.length)); } catch { return h.slice(prefix.length); }
-    };
-
-    if ((st && st.view === "details") || h.startsWith("#details-")) {
-      const id = (st && st.ringtoneId) || getFromHash("#details-");
-      if (id) openDetails(id, { push: false });
-      else openHome({ push: false });
-      return;
-    }
-
-    if ((st && st.view === "list") || h.startsWith("#list-")) {
-      const catId = (st && st.catId) || getFromHash("#list-");
-      if (catId) openList(catId, { push: false, restoreScroll: true });
-      else openHome({ push: false });
-      return;
-    }
-
-    openHome({ push: false });
-  });
-
-
-  // Offline hint
-  function updateOnline() {
-    offlineHint.classList.toggle("hidden", navigator.onLine);
-  }
-  window.addEventListener("online", updateOnline);
-  window.addEventListener("offline", updateOnline);
-  updateOnline();
-
-  // Contact footer
-  function renderContact() {
-    const links = $("contactLinks");
-    const social = $("socialLinks");
-    if (!links || !social) return;
-
-    const c = window.CONTACT || {};
-    links.innerHTML = "";
-    social.innerHTML = "";
-
-    const phone = c.phone ? String(c.phone).trim() : "";
-    const whatsapp = c.whatsapp ? String(c.whatsapp).trim() : "";
-    const email = c.email ? String(c.email).trim() : "";
-
-    const ICON = {
-      phone: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6.6 10.8c1.6 3 3.6 5 6.6 6.6l2.2-2.2c.3-.3.8-.4 1.2-.2 1 .4 2.2.7 3.3.7.7 0 1.1.4 1.1 1.1V20c0 .6-.5 1.1-1.1 1.1C10.3 21.1 2.9 13.7 2.9 4.1 2.9 3.5 3.4 3 4.1 3h3.3c.6 0 1.1.5 1.1 1.1 0 1.1.2 2.2.7 3.3.1.4 0 .9-.3 1.2l-2.3 2.2z"/></svg>`,
-      whatsapp: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/></svg>`,
-      email: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5L4 8V6l8 5 8-5v2z"/></svg>`
-    };
-
-    const makeCard = (label, value, href, iconSvg, color, extraClass) => {
-      if (!value) return;
-      const a = document.createElement("a");
-      a.className = "contact-card" + (extraClass ? (" " + extraClass) : "");
-      a.href = href || "#";
-      a.target = "_blank";
-      a.rel = "noopener";
-
-      const ic = document.createElement("div");
-      ic.className = "contact-ic";
-      if (color) ic.style.color = color;
-      ic.innerHTML = iconSvg;
-
-      const meta = document.createElement("div");
-      meta.className = "contact-meta";
-
-      const l = document.createElement("div");
-      l.className = "contact-label";
-      l.textContent = label;
-
-      const v = document.createElement("div");
-      v.className = "contact-value";
-      v.textContent = value;
-
-      meta.append(l, v);
-      a.append(ic, meta);
-      links.appendChild(a);
-    };
-
-    makeCard("اتصال", phone, phone ? `tel:${phone}` : "", ICON.phone, "#7dd3fc");
-    makeCard("واتساب", whatsapp, whatsapp ? `https://wa.me/${String(whatsapp).replace(/\D/g, "")}` : "", ICON.whatsapp, "#25D366");
-    makeCard("ايميل", email, email ? `mailto:${email}` : "", ICON.email, "#a78bfa", "is-email");
-
-    // Social icons (circular, one row)
-    const s = (c.social || {});
-    const SICON = {
-      instagram: { label:"Instagram", color:"#E1306C", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm10 2H7a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3zm-5 4.2A3.8 3.8 0 1 1 8.2 12 3.8 3.8 0 0 1 12 8.2zm0 2A1.8 1.8 0 1 0 13.8 12 1.8 1.8 0 0 0 12 10.2zM17.2 6.9a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2z"/></svg>`},
-      telegram: { label:"Telegram", color:"#2AABEE", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.8 4.6c.2-.8-.6-1.4-1.3-1.1L2.7 10.4c-.9.4-.8 1.7.1 2l4.6 1.5 1.8 5.7c.2.7 1.1.9 1.6.4l2.6-2.5 5.1 3.8c.6.4 1.4.1 1.6-.7l3-15zM9.6 14.2l8.8-7.6-6.9 9.1-.3 3.7-1.8-5.2z"/></svg>`},
-      x: { label:"X", color:"#ffffff", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2H22l-6.9 7.9L23 22h-6.7l-5.2-6.7L5.2 22H2l7.4-8.5L1 2h6.7l4.7 6.1L18.9 2zm-1.1 18h1.7L6.2 4H4.4l13.4 16z"/></svg>`},
-      youtube: { label:"YouTube", color:"#FF0000", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.9 4.6 12 4.6 12 4.6s-5.9 0-7.5.5A3 3 0 0 0 2.4 7.2 31 31 0 0 0 2 12a31 31 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.6.5 7.5.5 7.5.5s5.9 0 7.5-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 22 12a31 31 0 0 0-.4-4.8zM10 15.5v-7l6 3.5-6 3.5z"/></svg>`},
-      facebook: { label:"Facebook", color:"#1877F2", svg:`<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.5 22v-8h2.7l.4-3H13.5V9.2c0-.9.2-1.5 1.5-1.5h1.6V5.1c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.1V11H8v3h2.2v8h3.3z"/></svg>`}
-    };
-
-    const addSocial = (key, url) => {
-      if (!url) return;
-      const meta = SICON[key];
-      if (!meta) return;
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.setAttribute("aria-label", meta.label);
-      a.title = meta.label;
-      a.style.color = meta.color;
-      a.innerHTML = meta.svg;
-      social.appendChild(a);
-    };
-
-    addSocial("instagram", s.instagram);
-    addSocial("telegram", s.telegram);
-    addSocial("x", s.x);
-    addSocial("youtube", s.youtube);
-    addSocial("facebook", s.facebook);
-  }
-
-  // PWA install prompt
-
-  const isStandalone = () =>
-    (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
-    window.navigator.standalone === true;
-
-  let deferredPrompt = null;
-  let installTimeoutId = null;
-
-  const installBar = $("installBar");
-  const installBtn = $("installBtn");
-  const installLater = $("installLater");
-
-  const DISMISS_KEY = "pwa_install_dismissed_at";
-  // "لاحقًا" يخفي البطاقة لمدة 24 ساعة فقط
-  const DISMISS_MS = 24 * 60 * 60 * 1000;
-
-  const wasDismissedRecently = () => {
-    const ts = Number(localStorage.getItem(DISMISS_KEY) || 0);
-    if (!ts) return false;
-    return Date.now() - ts < DISMISS_MS;
-  };
-
-  const maybeShowInstallBar = () => {
-    if (!deferredPrompt) return;
-    if (isStandalone()) return;
-    if (wasDismissedRecently()) return;
-    installBar.classList.remove("hidden");
-    installBar.style.display = "flex";
-  };
-
-  window.addEventListener("beforeinstallprompt", (e) => {
-    // Chrome/Edge فقط: نخزّن الحدث ونمنع ظهور نافذة التثبيت التلقائي
-    e.preventDefault();
-    deferredPrompt = e;
-
-    // لا نظهر شريط التثبيت مباشرة: ننتظر 20 ثانية
-    if (installTimeoutId) clearTimeout(installTimeoutId);
-    installTimeoutId = setTimeout(maybeShowInstallBar, 20000);
-  });
-
-  window.addEventListener("appinstalled", () => {
-    deferredPrompt = null;
-    if (installTimeoutId) clearTimeout(installTimeoutId);
-    installBar.classList.add("hidden");
-    installBar.style.display = "none";
-    localStorage.removeItem(DISMISS_KEY);
-  });
-
-  installBtn.addEventListener("click", async () => {
-    if (!deferredPrompt) return;
-    // prompt() لازم يكون داخل تفاعل المستخدم (click)
-    deferredPrompt.prompt();
-    try {
-      await deferredPrompt.userChoice;
-    } finally {
-      deferredPrompt = null;
-      installBar.classList.add("hidden");
-      installBar.style.display = "none";
-    }
-  });
-
-  installLater.addEventListener("click", () => {
-    installBar.classList.add("hidden");
-    installBar.style.display = "none";
-    localStorage.setItem(DISMISS_KEY, String(Date.now()));
-  });
-
-  // init
-  renderCategories();
-  renderContact();
-  // Hide splash overlay once JS initialized
-  try { document.documentElement.classList.add("pwa-ready"); } catch(e) {}
-
-  // On initial load (including pull-to-refresh), restore the view from URL hash/state
-  // instead of forcing Home every time.
-  (function restoreInitialRoute(){
-    const st = (history && history.state) ? history.state : {};
-    const h = location.hash || "";
-
-    const getFromHash = (prefix) => {
-      if (!h.startsWith(prefix)) return null;
-      try { return decodeURIComponent(h.slice(prefix.length)); } catch { return h.slice(prefix.length); }
-    };
-
-    if ((st && st.view === "details") || h.startsWith("#details-")) {
-      const id = (st && st.ringtoneId) || getFromHash("#details-");
-      if (id) openDetails(id, { push: false });
-      else openHome({ push: false });
-      return;
-    }
-
-    if ((st && st.view === "list") || h.startsWith("#list-")) {
-      const catId = (st && st.catId) || getFromHash("#list-");
-      if (catId) openList(catId, { push: false, restoreScroll: true });
-      else openHome({ push: false });
-      return;
-    }
-
-    openHome({ push: false });
-  })();
+  initTabs();
+  render();
 })();
